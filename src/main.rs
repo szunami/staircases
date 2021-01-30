@@ -41,8 +41,8 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
-        // .add_system(escalator.system())
         .add_system(step_velocity.system())
+        .add_system(crate_system.system())
         .add_system(velocity.system())
         .add_system(step_arm.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
@@ -88,21 +88,15 @@ fn setup(
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(-75.0, 275.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(-75.0, 125.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
         .with(Crate {
             width: 50.0,
             height: 50.0,
-        });
-}
-
-fn escalator(mut escalators: Query<(&Escalator, &mut Transform)>) {
-    for (_escalator, mut transform) in escalators.iter_mut() {
-        transform.translation.x += 1.0;
-        transform.translation.y -= 1.0;
-    }
+        })
+        .with(Velocity(Vec2::zero()));
 }
 
 fn step_velocity(mut query: Query<(&Step, &mut Velocity)>) {
@@ -137,7 +131,7 @@ fn step_arm(
     mut steps: Query<&mut Step>,
     escalators: Query<&Escalator>,
 
-    mut transform_query: Query<&Transform>,
+    transform_query: Query<&Transform>,
 ) {
     for (parent, children) in parents_query.iter() {
         let escalator = escalators.get(parent).expect("parent");
@@ -181,16 +175,35 @@ fn step_arm(
     }
 }
 
-fn crate_system() {
-    // for each crate, is it atop a step? if not fall!
-    // if so, absorb momentum of step
+fn crate_system(
+    mut crates: Query<(&Crate, &Transform, &mut Velocity)>,
+    steps: Query<(&Step, &Transform, &Velocity)>,
+) {
+    for (cate, crate_transform, mut crate_velocity) in crates.iter_mut() {
+        let mut atop = false;
+
+        let crate_bottom = crate_transform.translation.y - cate.height / 2.0;
+
+        for (step, step_transform, mut step_velocity) in steps.iter() {
+            let step_top = step_transform.translation.y + step.step_height / 2.0;
+
+            if step_top == crate_bottom {
+                *crate_velocity = step_velocity.clone();
+                atop = true;
+                dbg!("atop");
+            }
+        }
+
+        if !atop {
+            crate_velocity.0.y = -1.0;
+        }
+    }
 }
 
+#[derive(Clone)]
 struct Velocity(Vec2);
 
 struct Crate {
     width: f32,
     height: f32,
 }
-
-fn step() {}
