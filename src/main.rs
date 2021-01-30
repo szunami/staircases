@@ -41,8 +41,10 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
-        .add_system(escalator.system())
-        .add_system(step.system())
+        // .add_system(escalator.system())
+        .add_system(step_velocity.system())
+        .add_system(velocity.system())
+        .add_system(step_arm.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
@@ -79,20 +81,20 @@ fn setup(
                     sprite: Sprite::new(Vec2::new(50.0, 50.0)),
                     ..Default::default()
                 })
-                .with(Step::default());
+                .with(Step::default())
+                .with(Velocity(Vec2::zero()));
+        });
 
-            // B
-            parent
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(-75.0, 25.0, 1.0)),
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(Step {
-                    arm: Arm::B,
-                    ..Step::default()
-                });
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(-75.0, 275.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {
+            width: 50.0,
+            height: 50.0,
         });
 }
 
@@ -103,13 +105,39 @@ fn escalator(mut escalators: Query<(&Escalator, &mut Transform)>) {
     }
 }
 
-fn step(
+fn step_velocity(mut query: Query<(&Step, &mut Velocity)>) {
+    for (step, mut velocity) in query.iter_mut() {
+        match step.arm {
+            Arm::A => {
+                *velocity = Velocity(Vec2::new(0.0, -1.0));
+            }
+            Arm::B => {
+                *velocity = Velocity(Vec2::new(1.0, -1.0));
+            }
+            Arm::C => {
+                *velocity = Velocity(Vec2::new(1.0, 0.0));
+            }
+            Arm::D => {
+                *velocity = Velocity(Vec2::new(-1.0, 1.0));
+            }
+        }
+    }
+}
+
+fn velocity(mut query: Query<(&Velocity, &mut Transform)>) {
+    for (velocity, mut transform) in query.iter_mut() {
+        transform.translation.x += velocity.0.x;
+        transform.translation.y += velocity.0.y;
+    }
+}
+
+fn step_arm(
     parents_query: Query<(Entity, &Children)>,
 
     mut steps: Query<&mut Step>,
     escalators: Query<&Escalator>,
 
-    mut transform_query: Query<&mut Transform>,
+    mut transform_query: Query<&Transform>,
 ) {
     for (parent, children) in parents_query.iter() {
         let escalator = escalators.get(parent).expect("parent");
@@ -117,24 +145,7 @@ fn step(
         for child in children.iter() {
             let mut step = steps.get_mut(*child).expect("step");
 
-            let mut step_transform = transform_query.get_mut(*child).expect("step transform");
-
-            match step.arm {
-                Arm::A => {
-                    step_transform.translation.y -= 1.0;
-                }
-                Arm::B => {
-                    step_transform.translation.x += 1.0;
-                    step_transform.translation.y -= 1.0;
-                }
-                Arm::C => {
-                    step_transform.translation.x += 1.0;
-                }
-                Arm::D => {
-                    step_transform.translation.x -= 1.0;
-                    step_transform.translation.y += 1.0;
-                }
-            }
+            let step_transform = transform_query.get(*child).expect("step transform");
 
             let step_top = step_transform.translation.y + step.step_height / 2.0;
             let step_bottom = step_transform.translation.y - step.step_height / 2.0;
@@ -169,3 +180,17 @@ fn step(
         }
     }
 }
+
+fn crate_system() {
+    // for each crate, is it atop a step? if not fall!
+    // if so, absorb momentum of step
+}
+
+struct Velocity(Vec2);
+
+struct Crate {
+    width: f32,
+    height: f32,
+}
+
+fn step() {}
