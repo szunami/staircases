@@ -11,7 +11,6 @@ struct Escalator {
 
 fn steps(
     escalator: &Escalator,
-    escalator_transform: &Transform,
     step: &Step,
 ) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
@@ -154,7 +153,7 @@ fn setup(
         .with(escalator.clone())
         .with_children(|parent| {
             let step = Step::default();
-            for (step_transform, arm) in steps(&escalator, &escalator_transform, &step) {
+            for (step_transform, arm) in steps(&escalator, &step) {
                 parent
                     .spawn(SpriteBundle {
                         material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
@@ -269,28 +268,23 @@ fn crate_system(
         let crate_bottom = crate_transform.translation.y - cate.height / 2.0;
         let crate_left = crate_transform.translation.x - cate.width / 2.0;
         let crate_right = crate_transform.translation.x + cate.width / 2.0;
-        for (step, step_transform, mut step_velocity) in steps.iter() {
+        for (step, step_transform, step_velocity) in steps.iter() {
             let step_top = step_transform.translation.y + step.step_height / 2.0;
 
             let step_left = step_transform.translation.x - step.step_width / 2.0;
             let step_right = step_transform.translation.x + step.step_width / 2.0;
-            if step_top == crate_bottom && 
-            ((step_left <= crate_left && step_right > crate_left)
-                || (crate_left <= step_left && crate_right > step_left))
+            if step_top == crate_bottom
+                && ((step_left <= crate_left && step_right > crate_left)
+                    || (crate_left <= step_left && crate_right > step_left))
             {
-                dbg!("atop", crate_transform.translation, step_transform.translation);
                 if step_velocity.0.y > crate_velocity.0.y {
-                    dbg!("increasing velocity");
                     *crate_velocity = step_velocity.clone();
-
                 }
                 atop = true;
-
             }
         }
 
         if !atop {
-            dbg!("falling");
             crate_velocity.0 = Vec2::new(0.0, -1.0);
         }
     }
