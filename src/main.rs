@@ -132,7 +132,7 @@ fn setup(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-    let escalator_transform = Transform::from_translation(Vec3::zero());
+    let escalator_transform = Transform::from_translation(Vec3::new(100.0, 0.0, 0.0));
     let escalator = Escalator::default();
 
     commands
@@ -260,7 +260,7 @@ fn step_arm(
 
 fn crate_system(
     mut crates: Query<(&Crate, &Transform, &mut Velocity)>,
-    steps: Query<(&Step, &Transform, &Velocity)>,
+    steps: Query<(&Step, &GlobalTransform, &Velocity)>,
 ) {
     for (cate, crate_transform, mut crate_velocity) in crates.iter_mut() {
         let mut atop = false;
