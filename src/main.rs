@@ -1,8 +1,75 @@
 use bevy::prelude::*;
 
+#[derive(Clone)]
 struct Escalator {
     escalator_height: f32,
     escalator_width: f32,
+}
+
+// given escalator transform + escalator  + step_width + step height
+// produce vec<transform, Arm> representing step locations
+
+fn steps(
+    escalator: &Escalator,
+    escalator_transform: &Transform,
+    step: &Step,
+) -> Vec<(Transform, Arm)> {
+    let mut result = vec![];
+
+    // A
+    result.push((
+        Transform::from_translation(Vec3::new(
+            -escalator.escalator_width / 2.0 + step.step_width / 2.0,
+            escalator.escalator_height / 2.0 - step.step_height / 2.0,
+            0.0,
+        )),
+        Arm::A,
+    ));
+
+    // B
+    let n = (escalator.escalator_height / step.step_height) as i32;
+
+    for index in 0..n - 2 {
+        result.push((
+            Transform::from_translation(Vec3::new(
+                -escalator.escalator_width / 2.0
+                    + step.step_width / 2.0
+                    + index as f32 * step.step_width,
+                escalator.escalator_height / 2.0
+                    - 3.0 * step.step_height / 2.0
+                    - index as f32 * step.step_height,
+                0.0,
+            )),
+            Arm::B,
+        ))
+    }
+
+    // C
+    result.push((
+        Transform::from_translation(Vec3::new(
+            escalator.escalator_width / 2.0 - 3.0 * step.step_width / 2.0,
+            -escalator.escalator_height / 2.0 + step.step_height / 2.0,
+            0.0,
+        )),
+        Arm::C,
+    ));
+
+    // D
+    for index in 0..n - 1 {
+        result.push((
+            Transform::from_translation(Vec3::new(
+                escalator.escalator_width / 2.0
+                    - step.step_width / 2.0
+                    - (index as f32) * step.step_width,
+                -escalator.escalator_height / 2.0
+                    + (step.step_height) / 2.0
+                    + (index as f32) * step.step_height,
+                0.0,
+            )),
+            Arm::D,
+        ))
+    }
+    result
 }
 
 impl Default for Escalator {
@@ -59,36 +126,53 @@ fn setup(
 ) {
     let walk_handle = asset_server.load("textures/base.png");
     let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
+
     let walk_handle = texture_atlases.add(walk_atlas);
 
     commands
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
+    let escalator_transform = Transform::from_translation(Vec3::zero());
+    let escalator = Escalator::default();
+
     commands
         .spawn(SpriteSheetBundle {
+            sprite: TextureAtlasSprite {
+                color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                ..TextureAtlasSprite::default()
+            },
+
+            visible: Visible {
+                is_visible: true,
+                is_transparent: true,
+            },
             texture_atlas: walk_handle,
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            transform: escalator_transform,
             ..Default::default()
         })
-        .with(Escalator::default())
+        .with(escalator.clone())
         .with_children(|parent| {
+            let step = Step::default();
+            for (step_transform, arm) in steps(&escalator, &escalator_transform, &step) {
+                parent
+                    .spawn(SpriteBundle {
+                        material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                        transform: step_transform,
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Step { arm, ..step })
+                    .with(Velocity(Vec2::zero()));
+            }
+
             // A
-            parent
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(-75.0, 75.0, 1.0)),
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(Step::default())
-                .with(Velocity(Vec2::zero()));
         });
 
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(-75.0, 125.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(-25.0, 75.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
@@ -183,19 +267,31 @@ fn crate_system(
         let mut atop = false;
 
         let crate_bottom = crate_transform.translation.y - cate.height / 2.0;
-
+        let crate_left = crate_transform.translation.x - cate.width / 2.0;
+        let crate_right = crate_transform.translation.x + cate.width / 2.0;
         for (step, step_transform, mut step_velocity) in steps.iter() {
             let step_top = step_transform.translation.y + step.step_height / 2.0;
 
-            if step_top == crate_bottom {
-                *crate_velocity = step_velocity.clone();
+            let step_left = step_transform.translation.x - step.step_width / 2.0;
+            let step_right = step_transform.translation.x + step.step_width / 2.0;
+            if step_top == crate_bottom && 
+            ((step_left <= crate_left && step_right > crate_left)
+                || (crate_left <= step_left && crate_right > step_left))
+            {
+                dbg!("atop", crate_transform.translation, step_transform.translation);
+                if step_velocity.0.y > crate_velocity.0.y {
+                    dbg!("increasing velocity");
+                    *crate_velocity = step_velocity.clone();
+
+                }
                 atop = true;
-                dbg!("atop");
+
             }
         }
 
         if !atop {
-            crate_velocity.0.y = -1.0;
+            dbg!("falling");
+            crate_velocity.0 = Vec2::new(0.0, -1.0);
         }
     }
 }
