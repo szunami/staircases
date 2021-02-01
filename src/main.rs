@@ -72,9 +72,10 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
         .add_system(step_velocity.system())
-        .add_system(crate_system.system())
+        .add_system(gravity_system.system())
         .add_system(velocity.system())
         .add_system(step_arm.system())
+        .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
@@ -225,11 +226,11 @@ fn step_arm(
     }
 }
 
-fn crate_system(
+fn gravity_system(
     mut crates: Query<(&Crate, &Transform, &mut Velocity, &BoundingBox)>,
     steps: Query<(&Step, &GlobalTransform, &Velocity, &BoundingBox)>,
 ) {
-    for (cate, crate_transform, mut crate_velocity, crate_box) in crates.iter_mut() {
+    for (_crate, crate_transform, mut crate_velocity, crate_box) in crates.iter_mut() {
         let mut atop = false;
 
         let crate_bottom = crate_transform.translation.y - crate_box.0.y / 2.0;
@@ -261,3 +262,38 @@ fn crate_system(
 struct Velocity(Vec2);
 
 struct Crate {}
+
+fn x_collision_correction(
+    mut crates: Query<(&Crate, &mut Transform, &BoundingBox)>,
+    steps: Query<(&Step, &GlobalTransform, &BoundingBox)>,
+) {
+    for (_crate, mut crate_transform, crate_box) in crates.iter_mut() {
+        let crate_top = crate_transform.translation.y + crate_box.0.y / 2.0;
+        let crate_bottom = crate_transform.translation.y - crate_box.0.y / 2.0;
+        let crate_left = crate_transform.translation.x - crate_box.0.x / 2.0;
+        let crate_right = crate_transform.translation.x + crate_box.0.x / 2.0;
+
+        for (_step, step_transform, step_box) in steps.iter() {
+            let step_top = step_transform.translation.y + step_box.0.y / 2.0;
+            let step_bottom = step_transform.translation.y - step_box.0.y / 2.0;
+            let step_left = step_transform.translation.x - step_box.0.x / 2.0;
+            let step_right = step_transform.translation.x + step_box.0.x / 2.0;
+
+            if (step_bottom <= crate_bottom && step_top > crate_bottom)
+                || (crate_bottom <= step_bottom && crate_top > step_bottom)
+            {
+                if step_left <= crate_left && step_right > crate_left {
+                    let delta = step_right - crate_left;
+
+                    crate_transform.translation.x += delta;
+                }
+
+                if crate_left <= step_left && crate_right > step_left {
+                    let delta = crate_right - step_left;
+
+                    crate_transform.translation.x -= delta;
+                }
+            }
+        }
+    }
+}
