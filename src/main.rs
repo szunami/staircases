@@ -1,63 +1,53 @@
 use bevy::prelude::*;
 
+#[derive(Clone)]
 struct BoundingBox(Vec2);
 
 struct Escalator;
 
-fn steps(
-    escalator: &BoundingBox,
-    step: &Step,
-) -> Vec<(Transform, Arm)> {
+fn steps(escalator: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
 
     // A
     result.push((
         Transform::from_translation(Vec3::new(
-            -escalator.0.x / 2.0 + step.step_width / 2.0,
-            escalator.0.y / 2.0 - step.step_height / 2.0,
+            -escalator.0.x / 2.0 + step.0.x / 2.0,
+            escalator.0.y / 2.0 - step.0.y / 2.0,
             0.0,
         )),
         Arm::A,
     ));
 
-    // B
-    let n = (escalator.0.y / step.step_height) as i32;
+    // // B
+    let n = (escalator.0.y / step.0.y) as i32;
 
     for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
-                -escalator.0.x / 2.0
-                    + step.step_width / 2.0
-                    + index as f32 * step.step_width,
-                escalator.0.y / 2.0
-                    - 3.0 * step.step_height / 2.0
-                    - index as f32 * step.step_height,
+                -escalator.0.x / 2.0 + step.0.x / 2.0 + index as f32 * step.0.x,
+                escalator.0.y / 2.0 - 3.0 * step.0.y / 2.0 - index as f32 * step.0.y,
                 0.0,
             )),
             Arm::B,
         ))
     }
 
-    // C
+    // // C
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator.0.x / 2.0 - 3.0 * step.step_width / 2.0,
-            -escalator.0.y / 2.0 + step.step_height / 2.0,
+            escalator.0.x / 2.0 - 3.0 * step.0.y / 2.0,
+            -escalator.0.y / 2.0 + step.0.y / 2.0,
             0.0,
         )),
         Arm::C,
     ));
 
-    // D
+    // // D
     for index in 0..n - 1 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator.0.x / 2.0
-                    - step.step_width / 2.0
-                    - (index as f32) * step.step_width,
-                -escalator.0.y / 2.0
-                    + (step.step_height) / 2.0
-                    + (index as f32) * step.step_height,
+                escalator.0.x / 2.0 - step.0.x / 2.0 - (index as f32) * step.0.x,
+                -escalator.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
                 0.0,
             )),
             Arm::D,
@@ -67,8 +57,6 @@ fn steps(
 }
 
 struct Step {
-    step_height: f32,
-    step_width: f32,
     arm: Arm,
 }
 
@@ -77,16 +65,6 @@ enum Arm {
     B,
     C,
     D,
-}
-
-impl Default for Step {
-    fn default() -> Self {
-        Step {
-            step_height: 50.0,
-            step_width: 50.0,
-            arm: Arm::A,
-        }
-    }
 }
 
 fn main() {
@@ -137,10 +115,10 @@ fn setup(
             transform: escalator_transform,
             ..Default::default()
         })
-        .with(Escalator{})
+        .with(Escalator {})
         .with_children(|parent| {
-            let step = Step::default();
-            for (step_transform, arm) in steps(&escalator_box, &step) {
+            let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+            for (step_transform, arm) in steps(&escalator_box, &step_box) {
                 parent
                     .spawn(SpriteBundle {
                         material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
@@ -148,14 +126,14 @@ fn setup(
                         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
                         ..Default::default()
                     })
-                    .with(Step { arm, ..step })
+                    .with(step_box.clone())
+                    .with(Step { arm })
                     .with(Velocity(Vec2::zero()));
             }
 
             // A
         })
-        .with(escalator_box)
-        ;
+        .with(escalator_box);
 
     commands
         .spawn(SpriteBundle {
@@ -201,6 +179,7 @@ fn step_arm(
     parents_query: Query<(Entity, &Children)>,
 
     mut steps: Query<&mut Step>,
+    step_boxes: Query<&BoundingBox>,
     escalators: Query<&BoundingBox>,
 
     transform_query: Query<&Transform>,
@@ -210,12 +189,13 @@ fn step_arm(
 
         for child in children.iter() {
             let mut step = steps.get_mut(*child).expect("step");
+            let step_box = step_boxes.get(*child).expect("step box");
 
             let step_transform = transform_query.get(*child).expect("step transform");
 
-            let step_top = step_transform.translation.y + step.step_height / 2.0;
-            let step_bottom = step_transform.translation.y - step.step_height / 2.0;
-            let step_right = step_transform.translation.x + step.step_width / 2.0;
+            let step_top = step_transform.translation.y + step_box.0.y / 2.0;
+            let step_bottom = step_transform.translation.y - step_box.0.y / 2.0;
+            let step_right = step_transform.translation.x + step_box.0.x / 2.0;
 
             let escalator_top = escalator.0.y / 2.0;
             let escalator_bottom = -escalator.0.y / 2.0;
@@ -223,7 +203,7 @@ fn step_arm(
 
             match step.arm {
                 Arm::A => {
-                    if step_bottom == escalator_top - 2.0 * step.step_height {
+                    if step_bottom == escalator_top - 2.0 * step_box.0.y {
                         step.arm = Arm::B;
                     }
                 }
@@ -249,7 +229,7 @@ fn step_arm(
 
 fn crate_system(
     mut crates: Query<(&Crate, &Transform, &mut Velocity)>,
-    steps: Query<(&Step, &GlobalTransform, &Velocity)>,
+    steps: Query<(&Step, &GlobalTransform, &Velocity, &BoundingBox)>,
 ) {
     for (cate, crate_transform, mut crate_velocity) in crates.iter_mut() {
         let mut atop = false;
@@ -257,11 +237,11 @@ fn crate_system(
         let crate_bottom = crate_transform.translation.y - cate.height / 2.0;
         let crate_left = crate_transform.translation.x - cate.width / 2.0;
         let crate_right = crate_transform.translation.x + cate.width / 2.0;
-        for (step, step_transform, step_velocity) in steps.iter() {
-            let step_top = step_transform.translation.y + step.step_height / 2.0;
+        for (_step, step_transform, step_velocity, step_box) in steps.iter() {
+            let step_top = step_transform.translation.y + step_box.0.y / 2.0;
 
-            let step_left = step_transform.translation.x - step.step_width / 2.0;
-            let step_right = step_transform.translation.x + step.step_width / 2.0;
+            let step_left = step_transform.translation.x - step_box.0.x / 2.0;
+            let step_right = step_transform.translation.x + step_box.0.x / 2.0;
             if step_top == crate_bottom
                 && ((step_left <= crate_left && step_right > crate_left)
                     || (crate_left <= step_left && crate_right > step_left))
