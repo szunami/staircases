@@ -1,4 +1,6 @@
-use bevy::prelude::*;
+use std::{collections::HashMap, thread, time::Duration};
+
+use bevy::{prelude::*, utils::HashSet};
 
 #[derive(Clone)]
 struct BoundingBox(Vec2);
@@ -71,6 +73,7 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
+        .add_system(sleep.system())
         .add_system(step_velocity.system())
         .add_system(gravity_system.system())
         .add_system(velocity.system())
@@ -78,6 +81,10 @@ fn main() {
         .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
+}
+
+fn sleep() {
+    std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 fn setup(
@@ -139,7 +146,7 @@ fn setup(
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(75.0, 125.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(100.0, 125.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
@@ -218,6 +225,7 @@ fn step_arm(
                 }
                 Arm::D => {
                     if step_top == escalator_top {
+                        dbg!("transition");
                         step.arm = Arm::A;
                     }
                 }
@@ -226,41 +234,115 @@ fn step_arm(
     }
 }
 
+fn is_atop(
+    atop_transform: &Transform,
+    atop_box: &BoundingBox,
+    below_transform: &Transform,
+    below_box: &BoundingBox,
+) -> bool {
+    let atop_bottom = atop_transform.translation.y - atop_box.0.y / 2.0;
+    let atop_left = atop_transform.translation.x - atop_box.0.x / 2.0;
+    let atop_right = atop_transform.translation.x + atop_box.0.x / 2.0;
+
+    let below_top = below_transform.translation.y + below_box.0.y / 2.0;
+    let below_left = below_transform.translation.x - below_box.0.x / 2.0;
+    let below_right = below_transform.translation.x + below_box.0.x / 2.0;
+
+    atop_bottom == below_top
+        && ((atop_left <= below_left && below_left < atop_right)
+            || (below_left <= atop_left && atop_left < below_right))
+}
+
 fn gravity_system(
-    mut crates: Query<(&Crate, &Transform, &mut Velocity, &BoundingBox)>,
+    mut crates: QuerySet<(
+        Query<(&Crate, Entity, &Transform, &Velocity, &BoundingBox)>,
+        Query<(&Crate, Entity, &mut Velocity)>,
+    )>,
+
+    // crates: Query<(&Crate, &Transform, &Velocity, &BoundingBox)>,
+    // mut crates_two: Query<(&Crate, &Transform, &mut Velocity, &BoundingBox)>,
     steps: Query<(&Step, &GlobalTransform, &Velocity, &BoundingBox)>,
 ) {
-    for (_crate, crate_transform, mut crate_velocity, crate_box) in crates.iter_mut() {
-        let mut atop = false;
 
-        let crate_bottom = crate_transform.translation.y - crate_box.0.y / 2.0;
-        let crate_left = crate_transform.translation.x - crate_box.0.x / 2.0;
-        let crate_right = crate_transform.translation.x + crate_box.0.x / 2.0;
-        for (_step, step_transform, step_velocity, step_box) in steps.iter() {
-            let step_top = step_transform.translation.y + step_box.0.y / 2.0;
+    // arrange items into stacks, apply gravity / transitive velocity up stacks
+    // for each crate, is it atop something?
 
-            let step_left = step_transform.translation.x - step_box.0.x / 2.0;
-            let step_right = step_transform.translation.x + step_box.0.x / 2.0;
-            if step_top == crate_bottom
-                && ((step_left <= crate_left && step_right > crate_left)
-                    || (crate_left <= step_left && crate_right > step_left))
-            {
-                if step_velocity.0.y > crate_velocity.0.y {
-                    *crate_velocity = step_velocity.clone();
+    // HashMap<Entity, Vec<Entity>> for stacks (base -> atop)
+    // if A is atop B, enter A to B
+    // HashSet<Entity> for bases
+    // if A is not atop anything add it to bases
+
+    // need to do math against immutable, then write to mutable
+
+    // let atop_stacks: HashMap<Entity, Vec<Entity>> = HashMap::new();
+    // let bases: HashSet<Entity> = HashSet::default();
+
+
+    // Problem! Crate is just a marker, duh
+    let mut crate_velocity: HashMap<Entity, Velocity> = HashMap::new();
+
+    for (crate_atop, crate_atop_entity, crate_atop_transform, mut crate_atop_velocity, crate_atop_box) in
+        crates.q0().iter()
+    {
+
+        let mut atop_any = false;
+
+        for (_crate_below, _crate_below_entity, crate_below_transform, crate_below_velocity, crate_below_box) in
+            crates.q0().iter()
+        {
+            if is_atop(
+                crate_atop_transform,
+                crate_atop_box,
+                crate_below_transform,
+                crate_below_box,
+            ) {
+                let current_velocity = crate_velocity.entry(crate_atop_entity).or_insert(crate_below_velocity.clone());
+                if current_velocity.0.y < crate_below_velocity.0.y {
+                    *current_velocity = crate_below_velocity.clone();
                 }
-                atop = true;
+                dbg!("atop crate");
+                atop_any = true;
+
+                // if y velocity increases, use the new one?
             }
         }
 
-        if !atop {
-            crate_velocity.0 = Vec2::new(0.0, -1.0);
+        // need to handle steps / escalators separately
+
+        for (_step, step_transform, step_velocity, step_box) in steps.iter() {
+
+            if is_atop(
+                crate_atop_transform,
+                crate_atop_box,
+                &Transform::from(*step_transform),
+                step_box,
+            ) {
+                let current_velocity = crate_velocity.entry(crate_atop_entity).or_insert(step_velocity.clone());
+                if current_velocity.0.y < step_velocity.0.y {
+                    *current_velocity = step_velocity.clone();
+                }
+                dbg!("atop step");
+                atop_any = true;
+            }
         }
+
+        if !atop_any {
+            dbg!("not atop");
+            crate_velocity.insert(crate_atop_entity, Velocity(Vec2::new(0.0, -1.0)));
+        }
+    }
+    // Query<(&Crate, &Entity, &mut Velocity)>,
+    for (_crate, crate_entity, mut velocity) in
+    crates.q1_mut().iter_mut() {
+        *velocity = crate_velocity.get(&crate_entity).expect("crate velocity").clone();
+
     }
 }
 
 #[derive(Clone)]
 struct Velocity(Vec2);
 
+#[derive(PartialEq, Eq, Hash)]
 struct Crate {}
 
 fn x_collision_correction(
@@ -283,12 +365,16 @@ fn x_collision_correction(
                 || (crate_bottom <= step_bottom && crate_top > step_bottom)
             {
                 if step_left <= crate_left && step_right > crate_left {
+                dbg!("pushing");
+
                     let delta = step_right - crate_left;
 
                     crate_transform.translation.x += delta;
                 }
 
                 if crate_left <= step_left && crate_right > step_left {
+                dbg!("pushing");
+
                     let delta = crate_right - step_left;
 
                     crate_transform.translation.x -= delta;
