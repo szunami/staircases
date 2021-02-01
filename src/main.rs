@@ -138,14 +138,12 @@ fn setup(
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(-25.0, 75.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(75.0, 125.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
-        .with(Crate {
-            width: 50.0,
-            height: 50.0,
-        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
         .with(Velocity(Vec2::zero()));
 }
 
@@ -228,15 +226,15 @@ fn step_arm(
 }
 
 fn crate_system(
-    mut crates: Query<(&Crate, &Transform, &mut Velocity)>,
+    mut crates: Query<(&Crate, &Transform, &mut Velocity, &BoundingBox)>,
     steps: Query<(&Step, &GlobalTransform, &Velocity, &BoundingBox)>,
 ) {
-    for (cate, crate_transform, mut crate_velocity) in crates.iter_mut() {
+    for (cate, crate_transform, mut crate_velocity, crate_box) in crates.iter_mut() {
         let mut atop = false;
 
-        let crate_bottom = crate_transform.translation.y - cate.height / 2.0;
-        let crate_left = crate_transform.translation.x - cate.width / 2.0;
-        let crate_right = crate_transform.translation.x + cate.width / 2.0;
+        let crate_bottom = crate_transform.translation.y - crate_box.0.y / 2.0;
+        let crate_left = crate_transform.translation.x - crate_box.0.x / 2.0;
+        let crate_right = crate_transform.translation.x + crate_box.0.x / 2.0;
         for (_step, step_transform, step_velocity, step_box) in steps.iter() {
             let step_top = step_transform.translation.y + step_box.0.y / 2.0;
 
@@ -262,7 +260,4 @@ fn crate_system(
 #[derive(Clone)]
 struct Velocity(Vec2);
 
-struct Crate {
-    width: f32,
-    height: f32,
-}
+struct Crate {}
