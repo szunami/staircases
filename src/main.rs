@@ -1,16 +1,11 @@
 use bevy::prelude::*;
 
-#[derive(Clone)]
-struct Escalator {
-    escalator_height: f32,
-    escalator_width: f32,
-}
+struct BoundingBox(Vec2);
 
-// given escalator transform + escalator  + step_width + step height
-// produce vec<transform, Arm> representing step locations
+struct Escalator;
 
 fn steps(
-    escalator: &Escalator,
+    escalator: &BoundingBox,
     step: &Step,
 ) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
@@ -18,23 +13,23 @@ fn steps(
     // A
     result.push((
         Transform::from_translation(Vec3::new(
-            -escalator.escalator_width / 2.0 + step.step_width / 2.0,
-            escalator.escalator_height / 2.0 - step.step_height / 2.0,
+            -escalator.0.x / 2.0 + step.step_width / 2.0,
+            escalator.0.y / 2.0 - step.step_height / 2.0,
             0.0,
         )),
         Arm::A,
     ));
 
     // B
-    let n = (escalator.escalator_height / step.step_height) as i32;
+    let n = (escalator.0.y / step.step_height) as i32;
 
     for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
-                -escalator.escalator_width / 2.0
+                -escalator.0.x / 2.0
                     + step.step_width / 2.0
                     + index as f32 * step.step_width,
-                escalator.escalator_height / 2.0
+                escalator.0.y / 2.0
                     - 3.0 * step.step_height / 2.0
                     - index as f32 * step.step_height,
                 0.0,
@@ -46,8 +41,8 @@ fn steps(
     // C
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator.escalator_width / 2.0 - 3.0 * step.step_width / 2.0,
-            -escalator.escalator_height / 2.0 + step.step_height / 2.0,
+            escalator.0.x / 2.0 - 3.0 * step.step_width / 2.0,
+            -escalator.0.y / 2.0 + step.step_height / 2.0,
             0.0,
         )),
         Arm::C,
@@ -57,10 +52,10 @@ fn steps(
     for index in 0..n - 1 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator.escalator_width / 2.0
+                escalator.0.x / 2.0
                     - step.step_width / 2.0
                     - (index as f32) * step.step_width,
-                -escalator.escalator_height / 2.0
+                -escalator.0.y / 2.0
                     + (step.step_height) / 2.0
                     + (index as f32) * step.step_height,
                 0.0,
@@ -69,15 +64,6 @@ fn steps(
         ))
     }
     result
-}
-
-impl Default for Escalator {
-    fn default() -> Self {
-        Escalator {
-            escalator_height: 200.0,
-            escalator_width: 200.0,
-        }
-    }
 }
 
 struct Step {
@@ -133,7 +119,8 @@ fn setup(
         .spawn(CameraUiBundle::default());
 
     let escalator_transform = Transform::from_translation(Vec3::new(100.0, 0.0, 0.0));
-    let escalator = Escalator::default();
+
+    let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
     commands
         .spawn(SpriteSheetBundle {
@@ -150,10 +137,10 @@ fn setup(
             transform: escalator_transform,
             ..Default::default()
         })
-        .with(escalator.clone())
+        .with(Escalator{})
         .with_children(|parent| {
             let step = Step::default();
-            for (step_transform, arm) in steps(&escalator, &step) {
+            for (step_transform, arm) in steps(&escalator_box, &step) {
                 parent
                     .spawn(SpriteBundle {
                         material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
@@ -166,7 +153,9 @@ fn setup(
             }
 
             // A
-        });
+        })
+        .with(escalator_box)
+        ;
 
     commands
         .spawn(SpriteBundle {
@@ -212,7 +201,7 @@ fn step_arm(
     parents_query: Query<(Entity, &Children)>,
 
     mut steps: Query<&mut Step>,
-    escalators: Query<&Escalator>,
+    escalators: Query<&BoundingBox>,
 
     transform_query: Query<&Transform>,
 ) {
@@ -228,9 +217,9 @@ fn step_arm(
             let step_bottom = step_transform.translation.y - step.step_height / 2.0;
             let step_right = step_transform.translation.x + step.step_width / 2.0;
 
-            let escalator_top = escalator.escalator_height / 2.0;
-            let escalator_bottom = -escalator.escalator_height / 2.0;
-            let escalator_right = escalator.escalator_width / 2.0;
+            let escalator_top = escalator.0.y / 2.0;
+            let escalator_bottom = -escalator.0.y / 2.0;
+            let escalator_right = escalator.0.x / 2.0;
 
             match step.arm {
                 Arm::A => {
