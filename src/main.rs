@@ -237,7 +237,7 @@ fn update_step_arm(
     escalators: Query<(&Escalator, &BoundingBox, &Transform)>,
 ) {
     for (mut step, step_box, step_transform) in steps.iter_mut() {
-        let (escalator, escalator_box, escalator_transform) =
+        let (_escalator, escalator_box, escalator_transform) =
             escalators.get(step.escalator).expect("fetch escalator");
 
         let step_top = step_transform.translation.y + step_box.0.y / 2.0;
@@ -350,7 +350,7 @@ fn propagate_velocity(
             Err(_) => Velocity(Vec2::new(0.0, -1.0)),
         };
 
-        for (index, entity) in path.iter().enumerate() {
+        for entity in path.iter() {
             let mut node_velocity = velocities.get_mut(*entity).expect("velocity query");
             // add in intrinsic velocity here
 
