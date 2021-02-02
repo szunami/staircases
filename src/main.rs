@@ -287,7 +287,7 @@ fn is_atop(
     let below_left = below_transform.translation.x - below_box.0.x / 2.0;
     let below_right = below_transform.translation.x + below_box.0.x / 2.0;
 
-    atop_bottom == below_top
+    (atop_bottom - below_top).abs() < std::f32::EPSILON
         && ((atop_left <= below_left && below_left < atop_right)
             || (below_left <= atop_left && atop_left < below_right))
 }
