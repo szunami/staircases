@@ -291,7 +291,7 @@ fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn propagate_velocity(
-    mut nodes: Query<(Entity, &Transform, &BoundingBox)>,
+    mut atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     mut bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
 
@@ -318,7 +318,7 @@ fn propagate_velocity(
         bases.insert(step.escalator);
     }
 
-    for (atop_entity, atop_transform, atop_box) in nodes.iter() {
+    for (atop_entity, atop_transform, atop_box) in atop_query.iter() {
         for (below_entity, below_transform, below_box) in bases_query.iter() {
             dbg!(atop_entity);
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
