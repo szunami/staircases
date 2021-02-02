@@ -60,47 +60,47 @@ fn setup(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-    // {
-    //     let escalator_transform = Transform::from_translation(Vec3::new(100.0, 0.0, 0.0));
+    {
+        let escalator_transform = Transform::from_translation(Vec3::new(100.0, 0.0, 0.0));
 
-    //     let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
-    //     let escalator = commands
-    //         .spawn(SpriteSheetBundle {
-    //             sprite: TextureAtlasSprite {
-    //                 color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-    //                 ..TextureAtlasSprite::default()
-    //             },
+        let escalator = commands
+            .spawn(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                    ..TextureAtlasSprite::default()
+                },
 
-    //             visible: Visible {
-    //                 is_visible: true,
-    //                 is_transparent: true,
-    //             },
-    //             texture_atlas: walk_handle.clone_weak(),
-    //             transform: escalator_transform,
-    //             ..Default::default()
-    //         })
-    //         .with(Escalator {})
-    //         .with(Velocity(Vec2::zero()))
-    //         .with(escalator_box.clone())
-    //         .current_entity()
-    //         .expect("Parent");
+                visible: Visible {
+                    is_visible: true,
+                    is_transparent: true,
+                },
+                texture_atlas: walk_handle.clone_weak(),
+                transform: escalator_transform,
+                ..Default::default()
+            })
+            .with(Escalator {})
+            .with(Velocity(Vec2::zero()))
+            .with(escalator_box.clone())
+            .current_entity()
+            .expect("Parent");
 
-    //     let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-    //     for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
-    //         commands
-    //             .spawn(SpriteBundle {
-    //                 material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-    //                 transform: step_transform,
-    //                 sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //                 ..Default::default()
-    //             })
-    //             .with(step_box.clone())
-    //             .with(Step { arm, escalator })
-    //             .with(Velocity(Vec2::zero()))
-    //             .with(IntrinsicVelocity(Vec2::zero()));
-    //     }
-    // }
+        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                    transform: step_transform,
+                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                    ..Default::default()
+                })
+                .with(step_box.clone())
+                .with(Step { arm, escalator })
+                .with(Velocity(Vec2::zero()))
+                .with(IntrinsicVelocity(Vec2::zero()));
+        }
+    }
 
     {
         let escalator_transform = Transform::from_translation(Vec3::new(100.0, 500.0, 0.0));
