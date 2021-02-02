@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    f32::MIN,
-};
+use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
@@ -129,6 +126,17 @@ fn setup(
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
             transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
+
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(00.0, 250.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
@@ -285,7 +293,7 @@ fn is_atop(
 }
 
 fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
-    for (mut velocity) in ungrounded.iter_mut() {
+    for mut velocity in ungrounded.iter_mut() {
         *velocity = Velocity(Vec2::new(0.0, f32::MIN));
     }
 }
@@ -293,8 +301,8 @@ fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn propagate_velocity(
-    mut atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
-    mut bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
+    atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
+    bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
 
     grounds: Query<(&Ground, Entity)>,
@@ -303,11 +311,6 @@ fn propagate_velocity(
 
     mut velocities: Query<&mut Velocity>,
 ) {
-    //
-
-    // somehow want to skip Steps in this query? -> Without
-
-    // need smarter handling of step / escalator for moving escalator
     let mut edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
 
     let mut bases: HashSet<Entity> = HashSet::default();
@@ -321,9 +324,10 @@ fn propagate_velocity(
     }
 
     for (atop_entity, atop_transform, atop_box) in atop_query.iter() {
+        let mut is_atop_anything = false;
         for (below_entity, below_transform, below_box) in bases_query.iter() {
-            dbg!(atop_entity);
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
+                is_atop_anything = true;
                 let current_atops = edges.entry(below_entity).or_insert(HashSet::new());
 
                 current_atops.insert(atop_entity);
@@ -331,13 +335,14 @@ fn propagate_velocity(
                 bases.insert(below_entity);
             }
         }
+        if !is_atop_anything {
+            bases.insert(atop_entity);
+        }
     }
 
     let roots = bases.difference(&atops);
 
     for path in build_paths(roots, edges) {
-        // what should this be initialized to?
-
         let base = path.first().expect("first");
 
         let mut cumulative_velocity = match grounds.get(*base) {
