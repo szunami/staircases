@@ -250,22 +250,22 @@ fn update_step_arm(
 
         match step.arm {
             Arm::A => {
-                if step_bottom == escalator_top - 2.0 * step_box.0.y {
+                if (step_bottom - (escalator_top - 2.0 * step_box.0.y)).abs() < std::f32::EPSILON {
                     step.arm = Arm::B;
                 }
             }
             Arm::B => {
-                if step_bottom == escalator_bottom {
+                if (step_bottom - escalator_bottom).abs() < std::f32::EPSILON {
                     step.arm = Arm::C;
                 }
             }
             Arm::C => {
-                if step_right == escalator_right {
+                if (step_right - escalator_right).abs() < std::f32::EPSILON {
                     step.arm = Arm::D;
                 }
             }
             Arm::D => {
-                if step_top == escalator_top {
+                if (step_top - escalator_top).abs() < std::f32::EPSILON {
                     step.arm = Arm::A;
                 }
             }
