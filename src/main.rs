@@ -6,7 +6,7 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
-        .add_system(step_velocity.system())
+        .add_system(step_intrinsic_velocity.system())
         .add_system(ground_velocity.system())
         .add_system(propagate_velocity.system())
         .add_system(update_position.system())
@@ -35,6 +35,8 @@ enum Arm {
 
 #[derive(Clone)]
 struct Velocity(Vec2);
+
+struct IntrinsicVelocity(Vec2);
 
 struct Ground;
 
@@ -94,7 +96,8 @@ fn setup(
             })
             .with(step_box.clone())
             .with(Step { arm, escalator })
-            .with(Velocity(Vec2::zero()));
+            .with(Velocity(Vec2::zero()))
+            .with(IntrinsicVelocity(Vec2::zero()));
     }
 
     commands
@@ -170,20 +173,20 @@ fn steps(
     result
 }
 
-fn step_velocity(mut query: Query<(&Step, &mut Velocity)>) {
-    for (step, mut velocity) in query.iter_mut() {
+fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
+    for (step, mut intrinsic_velocity) in query.iter_mut() {
         match step.arm {
             Arm::A => {
-                *velocity = Velocity(Vec2::new(0.0, -1.0));
+                *intrinsic_velocity = IntrinsicVelocity(Vec2::new(0.0, -1.0));
             }
             Arm::B => {
-                *velocity = Velocity(Vec2::new(1.0, -1.0));
+                *intrinsic_velocity = IntrinsicVelocity(Vec2::new(1.0, -1.0));
             }
             Arm::C => {
-                *velocity = Velocity(Vec2::new(1.0, 0.0));
+                *intrinsic_velocity = IntrinsicVelocity(Vec2::new(1.0, 0.0));
             }
             Arm::D => {
-                *velocity = Velocity(Vec2::new(-1.0, 1.0));
+                *intrinsic_velocity = IntrinsicVelocity(Vec2::new(-1.0, 1.0));
             }
         }
     }
@@ -258,7 +261,7 @@ fn is_atop(
 
 fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
     for (mut velocity) in ungrounded.iter_mut() {
-        *velocity = Velocity(Vec2::new(0.0, -1.0));
+        *velocity = Velocity(Vec2::new(0.0, 0.0));
     }
 }
 
@@ -270,7 +273,9 @@ fn propagate_velocity(
 
     grounds: Query<(&Ground, Entity)>,
 
-    mut velocities: Query<(&mut Velocity)>,
+    intrinsic_velocities: Query<&IntrinsicVelocity>,
+
+    mut velocities: Query<&mut Velocity>,
 ) {
     //
 
@@ -305,21 +310,29 @@ fn propagate_velocity(
     let roots = bases.difference(&atops);
 
     for path in build_paths(roots, edges) {
-        let mut cumulative_velocity = Velocity(Vec2::new(0.0, -1.0));
+        // what should this be initialized to?
+
+        let base = path.first().expect("first");
+        
+        let mut cumulative_velocity = match grounds.get(*base) {
+            Ok(_) => {Velocity(Vec2::zero())}
+            Err(_) => {Velocity(Vec2::new(0.0, -1.0))}
+        };
 
         for (index, entity) in path.iter().enumerate() {
-            let mut velocity = velocities.get_mut(*entity).expect("velocity query");
+            let mut node_velocity = velocities.get_mut(*entity).expect("velocity query");
             // add in intrinsic velocity here
 
-            // HACKHACK
-            // introduce some concept of grounding?
-
-            if velocity.0.y > cumulative_velocity.0.y {
-                cumulative_velocity = velocity.clone();
-            } else {
-                *velocity = cumulative_velocity.clone();
+            if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
+                cumulative_velocity.0.x += intrinsic_velocity.0.x;
+                cumulative_velocity.0.y += intrinsic_velocity.0.y;
             }
+
+            // somehow max here
+            *node_velocity = cumulative_velocity.clone();
         }
+
+
     }
 }
 
