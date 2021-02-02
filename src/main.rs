@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use bevy::{prelude::*, transform::transform_propagate_system::transform_propagate_system};
+use bevy::{
+    prelude::*, transform::transform_propagate_system::transform_propagate_system, utils::HashSet,
+};
 
 #[derive(Clone)]
 struct BoundingBox(Vec2);
@@ -262,45 +264,32 @@ fn is_atop(
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn gravity_system(
-    mut crates: QuerySet<(
-        Query<(&Crate, Entity, &Transform, &Velocity, &BoundingBox)>,
-        Query<(&Crate, Entity, &mut Velocity)>,
-    )>,
+    mut crates: Query<(&Crate, Entity, &Transform, &BoundingBox)>,
 
-    steps: Query<(&Step, &GlobalTransform, &Velocity, &BoundingBox)>,
+    steps: Query<(&Step, Entity, &GlobalTransform, &BoundingBox)>,
+
+    mut velocities: Query<(&mut Velocity)>,
 ) {
-    // arrange items into stacks, apply gravity / transitive velocity up stacks
-    // for each crate, is it atop something?
+    let mut edges: HashMap<Entity, Vec<Entity>> = HashMap::new();
 
-    // HashMap<Entity, Vec<Entity>> for stacks (base -> atop)
-    // if A is atop B, enter A to B
-    // HashSet<Entity> for bases
-    // if A is not atop anything add it to bases
-
-    // need to do math against immutable, then write to mutable
-
-    // let atop_stacks: HashMap<Entity, Vec<Entity>> = HashMap::new();
-    // let bases: HashSet<Entity> = HashSet::default();
-
-    let mut crate_velocity: HashMap<Entity, Velocity> = HashMap::new();
+    let mut bases: HashSet<Entity> = HashSet::default();
+    let mut atops: HashSet<Entity> = HashSet::default();
 
     for (
-        crate_atop,
+        _crate_atop,
         crate_atop_entity,
         crate_atop_transform,
-        crate_atop_velocity,
         crate_atop_box,
-    ) in crates.q0().iter()
+    ) in crates.iter()
     {
         let mut atop_any = false;
 
         for (
             _crate_below,
-            _crate_below_entity,
+            crate_below_entity,
             crate_below_transform,
-            crate_below_velocity,
             crate_below_box,
-        ) in crates.q0().iter()
+        ) in crates.iter()
         {
             if is_atop(
                 crate_atop_transform,
@@ -308,45 +297,94 @@ fn gravity_system(
                 crate_below_transform,
                 crate_below_box,
             ) {
-                let current_velocity = crate_velocity
-                    .entry(crate_atop_entity)
-                    .or_insert(crate_below_velocity.clone());
-                if current_velocity.0.y < crate_below_velocity.0.y {
-                    *current_velocity = crate_below_velocity.clone();
-                }
+                let current_atops = edges.entry(crate_below_entity).or_insert(vec![]);
+
+                current_atops.push(crate_atop_entity);
+                atops.insert(crate_atop_entity);
+                bases.insert(crate_below_entity);
+
                 atop_any = true;
             }
         }
 
         // need to handle steps / escalators separately
 
-        for (_step, step_transform, step_velocity, step_box) in steps.iter() {
+        for (_step, step_entity, step_transform, step_box) in steps.iter() {
             if is_atop(
                 crate_atop_transform,
                 crate_atop_box,
                 &Transform::from(*step_transform),
                 step_box,
             ) {
-                let current_velocity = crate_velocity
-                    .entry(crate_atop_entity)
-                    .or_insert(step_velocity.clone());
-                if current_velocity.0.y < step_velocity.0.y {
-                    *current_velocity = step_velocity.clone();
-                }
+                let current_atops = edges.entry(step_entity).or_insert(vec![]);
+                current_atops.push(crate_atop_entity);
+                atops.insert(crate_atop_entity);
+                bases.insert(step_entity);
 
                 atop_any = true;
             }
         }
-
-        if !atop_any {
-            crate_velocity.insert(crate_atop_entity, Velocity(Vec2::new(0.0, -1.0)));
-        }
     }
-    for (_crate, crate_entity, mut velocity) in crates.q1_mut().iter_mut() {
-        *velocity = crate_velocity
-            .get(&crate_entity)
-            .expect("crate velocity")
-            .clone();
+
+    let roots = bases.difference(&atops);
+
+    for path in build_paths(roots, edges) {
+
+        let mut current_velocity = Velocity(Vec2::new(0.0, -1.0));
+
+        for (index, entity) in path.iter().enumerate() {
+
+            let mut velocity = velocities.get_mut(*entity).expect("velocity query");
+            // add in intrinsic velocity here
+
+            match steps.get(*entity) {
+                Ok(_) => {
+                    current_velocity = velocity.clone();
+                }
+                Err(_) => {
+                    *velocity = current_velocity.clone();
+                }
+            }
+        }
+
+        dbg!(path);
+
+    }
+
+    // somehow want to account for things not atop anything?
+}
+
+// generates all complete paths
+fn build_paths<'a>(
+    roots: impl Iterator<Item = &'a Entity>,
+    edges: HashMap<Entity, Vec<Entity>>,
+) -> Vec<Vec<Entity>> {
+    let mut result = vec![];
+
+    for root in roots {
+        result.extend(path_helper(*root, &edges));
+    }
+
+    result
+}
+
+fn path_helper(current: Entity, edges: &HashMap<Entity, Vec<Entity>>) -> Vec<Vec<Entity>> {
+    // base case, no edges
+
+    match edges.get(&current) {
+        Some(children) => {
+            let mut result = vec![];
+
+            for child in children {
+                for mut child_path in path_helper(*child, edges) {
+                    child_path.insert(0, current);
+                    result.push(child_path);
+                }
+            }
+
+            return result;
+        }
+        None => return vec![vec![current]],
     }
 }
 
