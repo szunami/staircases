@@ -2,84 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
 
-#[derive(Clone)]
-struct BoundingBox(Vec2);
-
-struct Escalator;
-
-fn steps(
-    escalator_transform: &Transform,
-    escalator_box: &BoundingBox,
-    step: &BoundingBox,
-) -> Vec<(Transform, Arm)> {
-    let mut result = vec![];
-
-    // A
-    result.push((
-        Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
-            escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
-            0.0,
-        )),
-        Arm::A,
-    ));
-
-    // B
-    let n = (escalator_box.0.y / step.0.y) as i32;
-
-    for index in 0..n - 2 {
-        result.push((
-            Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x - escalator_box.0.x / 2.0
-                    + step.0.x / 2.0
-                    + index as f32 * step.0.x,
-                escalator_transform.translation.y + escalator_box.0.y / 2.0
-                    - 3.0 * step.0.y / 2.0
-                    - index as f32 * step.0.y,
-                0.0,
-            )),
-            Arm::B,
-        ))
-    }
-
-    // C
-    result.push((
-        Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
-            escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
-            0.0,
-        )),
-        Arm::C,
-    ));
-
-    // D
-    for index in 0..n - 1 {
-        result.push((
-            Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x + escalator_box.0.x / 2.0
-                    - step.0.x / 2.0
-                    - (index as f32) * step.0.x,
-                -escalator_box.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
-                0.0,
-            )),
-            Arm::D,
-        ));
-    }
-    result
-}
-
-struct Step {
-    arm: Arm,
-    escalator: Entity,
-}
-
-enum Arm {
-    A,
-    B,
-    C,
-    D,
-}
-
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
@@ -93,6 +15,31 @@ fn main() {
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
+
+#[derive(Clone)]
+struct BoundingBox(Vec2);
+
+struct Escalator;
+
+struct Step {
+    arm: Arm,
+    escalator: Entity,
+}
+
+enum Arm {
+    A,
+    B,
+    C,
+    D,
+}
+
+#[derive(Clone)]
+struct Velocity(Vec2);
+
+struct Ground;
+
+#[derive(PartialEq, Eq, Hash)]
+struct Crate;
 
 fn setup(
     commands: &mut Commands,
@@ -160,6 +107,67 @@ fn setup(
         .with(Ground {})
         .with(BoundingBox(Vec2::new(200.0, 50.0)))
         .with(Velocity(Vec2::zero()));
+}
+
+fn steps(
+    escalator_transform: &Transform,
+    escalator_box: &BoundingBox,
+    step: &BoundingBox,
+) -> Vec<(Transform, Arm)> {
+    let mut result = vec![];
+
+    // A
+    result.push((
+        Transform::from_translation(Vec3::new(
+            escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
+            escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
+            0.0,
+        )),
+        Arm::A,
+    ));
+
+    // B
+    let n = (escalator_box.0.y / step.0.y) as i32;
+
+    for index in 0..n - 2 {
+        result.push((
+            Transform::from_translation(Vec3::new(
+                escalator_transform.translation.x - escalator_box.0.x / 2.0
+                    + step.0.x / 2.0
+                    + index as f32 * step.0.x,
+                escalator_transform.translation.y + escalator_box.0.y / 2.0
+                    - 3.0 * step.0.y / 2.0
+                    - index as f32 * step.0.y,
+                0.0,
+            )),
+            Arm::B,
+        ))
+    }
+
+    // C
+    result.push((
+        Transform::from_translation(Vec3::new(
+            escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
+            escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
+            0.0,
+        )),
+        Arm::C,
+    ));
+
+    // D
+    for index in 0..n - 1 {
+        result.push((
+            Transform::from_translation(Vec3::new(
+                escalator_transform.translation.x + escalator_box.0.x / 2.0
+                    - step.0.x / 2.0
+                    - (index as f32) * step.0.x,
+                -escalator_box.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
+                0.0,
+            )),
+            Arm::D,
+        ));
+    }
+    result
 }
 
 fn step_velocity(mut query: Query<(&Step, &mut Velocity)>) {
@@ -257,7 +265,7 @@ fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn propagate_velocity(
-    mut nodes: Query<(&Entity, &Transform, &BoundingBox)>,
+    mut nodes: Query<(Entity, &Transform, &BoundingBox)>,
     steps: Query<(&Step, Entity)>,
 
     grounds: Query<(&Ground, Entity)>,
@@ -283,12 +291,13 @@ fn propagate_velocity(
 
     for (atop_entity, atop_transform, atop_box) in nodes.iter() {
         for (below_entity, below_transform, below_box) in nodes.iter() {
+            dbg!(atop_entity);
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
-                let current_atops = edges.entry(*below_entity).or_insert(HashSet::new());
+                let current_atops = edges.entry(below_entity).or_insert(HashSet::new());
 
-                current_atops.insert(*atop_entity);
-                atops.insert(*atop_entity);
-                bases.insert(*below_entity);
+                current_atops.insert(atop_entity);
+                atops.insert(atop_entity);
+                bases.insert(below_entity);
             }
         }
     }
@@ -296,7 +305,7 @@ fn propagate_velocity(
     let roots = bases.difference(&atops);
 
     for path in build_paths(roots, edges) {
-        let mut current_velocity = Velocity(Vec2::new(0.0, -1.0));
+        let mut cumulative_velocity = Velocity(Vec2::new(0.0, -1.0));
 
         for (index, entity) in path.iter().enumerate() {
             let mut velocity = velocities.get_mut(*entity).expect("velocity query");
@@ -305,10 +314,10 @@ fn propagate_velocity(
             // HACKHACK
             // introduce some concept of grounding?
 
-            if velocity.0.y > current_velocity.0.y {
-                current_velocity = velocity.clone();
+            if velocity.0.y > cumulative_velocity.0.y {
+                cumulative_velocity = velocity.clone();
             } else {
-                *velocity = current_velocity.clone();
+                *velocity = cumulative_velocity.clone();
             }
         }
     }
@@ -347,14 +356,6 @@ fn path_helper(current: Entity, edges: &HashMap<Entity, HashSet<Entity>>) -> Vec
         None => return vec![vec![current]],
     }
 }
-
-#[derive(Clone)]
-struct Velocity(Vec2);
-
-struct Ground;
-
-#[derive(PartialEq, Eq, Hash)]
-struct Crate;
 
 fn x_collision_correction(
     mut crates: Query<(&Crate, &mut Transform, &BoundingBox)>,
