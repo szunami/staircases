@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    f32::MIN,
+};
 
 use bevy::prelude::*;
 
@@ -111,7 +114,7 @@ fn setup(
         .with(BoundingBox(Vec2::new(200.0, 50.0)))
         .with(Velocity(Vec2::zero()));
 
-        commands
+    commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
             transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
@@ -122,8 +125,7 @@ fn setup(
         .with(BoundingBox(Vec2::new(50.0, 50.0)))
         .with(Velocity(Vec2::zero()));
 
-
-        commands
+    commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
             transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
@@ -284,7 +286,7 @@ fn is_atop(
 
 fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
     for (mut velocity) in ungrounded.iter_mut() {
-        *velocity = Velocity(Vec2::new(0.0, -1.0));
+        *velocity = Velocity(Vec2::new(0.0, f32::MIN));
     }
 }
 
@@ -337,10 +339,10 @@ fn propagate_velocity(
         // what should this be initialized to?
 
         let base = path.first().expect("first");
-        
+
         let mut cumulative_velocity = match grounds.get(*base) {
-            Ok(_) => {Velocity(Vec2::zero())}
-            Err(_) => {Velocity(Vec2::new(0.0, -1.0))}
+            Ok(_) => Velocity(Vec2::zero()),
+            Err(_) => Velocity(Vec2::new(0.0, -1.0)),
         };
 
         for (index, entity) in path.iter().enumerate() {
@@ -353,10 +355,11 @@ fn propagate_velocity(
             }
 
             // somehow max here
-            *node_velocity = cumulative_velocity.clone();
+
+            if cumulative_velocity.0.y > node_velocity.0.y {
+                *node_velocity = cumulative_velocity.clone();
+            }
         }
-
-
     }
 }
 
