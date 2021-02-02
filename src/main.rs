@@ -1,21 +1,23 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use bevy::{
-    prelude::*, transform::transform_propagate_system::transform_propagate_system, utils::HashSet,
-};
+use bevy::prelude::*;
 
 #[derive(Clone)]
 struct BoundingBox(Vec2);
 
 struct Escalator;
 
-fn steps(escalator_transform: &Transform, escalator_box: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
+fn steps(
+    escalator_transform: &Transform,
+    escalator_box: &BoundingBox,
+    step: &BoundingBox,
+) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
 
     // A
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x -escalator_box.0.x / 2.0 + step.0.x / 2.0,
+            escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
             escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
             0.0,
         )),
@@ -28,8 +30,12 @@ fn steps(escalator_transform: &Transform, escalator_box: &BoundingBox, step: &Bo
     for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x -escalator_box.0.x / 2.0 + step.0.x / 2.0 + index as f32 * step.0.x,
-                escalator_transform.translation.y + escalator_box.0.y / 2.0 - 3.0 * step.0.y / 2.0 - index as f32 * step.0.y,
+                escalator_transform.translation.x - escalator_box.0.x / 2.0
+                    + step.0.x / 2.0
+                    + index as f32 * step.0.x,
+                escalator_transform.translation.y + escalator_box.0.y / 2.0
+                    - 3.0 * step.0.y / 2.0
+                    - index as f32 * step.0.y,
                 0.0,
             )),
             Arm::B,
@@ -39,8 +45,8 @@ fn steps(escalator_transform: &Transform, escalator_box: &BoundingBox, step: &Bo
     // C
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x  + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
-            escalator_transform.translation.y -escalator_box.0.y / 2.0 + step.0.y / 2.0,
+            escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
+            escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
             0.0,
         )),
         Arm::C,
@@ -50,7 +56,9 @@ fn steps(escalator_transform: &Transform, escalator_box: &BoundingBox, step: &Bo
     for index in 0..n - 1 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x  + escalator_box.0.x / 2.0 - step.0.x / 2.0 - (index as f32) * step.0.x,
+                escalator_transform.translation.x + escalator_box.0.x / 2.0
+                    - step.0.x / 2.0
+                    - (index as f32) * step.0.x,
                 -escalator_box.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
                 0.0,
             )),
@@ -77,10 +85,10 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
         .add_system(step_velocity.system())
-        .add_system(gravity_system.system())
+        .add_system(ground_velocity.system())
+        .add_system(propagate_velocity.system())
         .add_system(update_position.system())
         .add_system(update_step_arm.system())
-        .add_system(transform_propagate_system.system())
         .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
@@ -123,6 +131,7 @@ fn setup(
             ..Default::default()
         })
         .with(Escalator {})
+        .with(Velocity(Vec2::zero()))
         .with(escalator_box.clone())
         .current_entity()
         .expect("Parent");
@@ -140,30 +149,6 @@ fn setup(
             .with(Step { arm, escalator })
             .with(Velocity(Vec2::zero()));
     }
-
-    // A
-
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(100.0, 125.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()));
-
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(100.0, 175.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()));
 
     commands
         .spawn(SpriteBundle {
@@ -263,63 +248,47 @@ fn is_atop(
             || (below_left <= atop_left && atop_left < below_right))
 }
 
+fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
+    for (mut velocity) in ungrounded.iter_mut() {
+        *velocity = Velocity(Vec2::new(0.0, -1.0));
+    }
+}
+
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
-fn gravity_system(
-    mut crates: Query<(&Crate, Entity, &Transform, &BoundingBox)>,
+fn propagate_velocity(
+    mut nodes: Query<(&Entity, &Transform, &BoundingBox)>,
+    steps: Query<(&Step, Entity)>,
 
-    steps: Query<(&Step, Entity, &GlobalTransform, &BoundingBox)>,
-
-    escalators: Query<(&Escalator, Entity, &Transform, &BoundingBox)>,
-    grounds: Query<(&Ground, Entity, &Transform, &BoundingBox)>,
+    grounds: Query<(&Ground, Entity)>,
 
     mut velocities: Query<(&mut Velocity)>,
 ) {
+    //
+
     // somehow want to skip Steps in this query? -> Without
 
     // need smarter handling of step / escalator for moving escalator
-    let mut edges: HashMap<Entity, Vec<Entity>> = HashMap::new();
+    let mut edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
 
     let mut bases: HashSet<Entity> = HashSet::default();
     let mut atops: HashSet<Entity> = HashSet::default();
 
-    for (_crate_atop, crate_atop_entity, crate_atop_transform, crate_atop_box) in crates.iter() {
-        let mut atop_any = false;
+    for (step, step_entity) in steps.iter() {
+        let current_atops = edges.entry(step.escalator).or_insert(HashSet::new());
+        current_atops.insert(step_entity);
+        atops.insert(step_entity);
+        bases.insert(step.escalator);
+    }
 
-        for (_crate_below, crate_below_entity, crate_below_transform, crate_below_box) in
-            crates.iter()
-        {
-            if is_atop(
-                crate_atop_transform,
-                crate_atop_box,
-                crate_below_transform,
-                crate_below_box,
-            ) {
-                let current_atops = edges.entry(crate_below_entity).or_insert(vec![]);
+    for (atop_entity, atop_transform, atop_box) in nodes.iter() {
+        for (below_entity, below_transform, below_box) in nodes.iter() {
+            if is_atop(atop_transform, atop_box, below_transform, below_box) {
+                let current_atops = edges.entry(*below_entity).or_insert(HashSet::new());
 
-                current_atops.push(crate_atop_entity);
-                atops.insert(crate_atop_entity);
-                bases.insert(crate_below_entity);
-
-                atop_any = true;
-            }
-        }
-
-        // need to handle steps / escalators separately
-
-        for (_step, step_entity, step_transform, step_box) in steps.iter() {
-            if is_atop(
-                crate_atop_transform,
-                crate_atop_box,
-                &Transform::from(*step_transform),
-                step_box,
-            ) {
-                let current_atops = edges.entry(step_entity).or_insert(vec![]);
-                current_atops.push(crate_atop_entity);
-                atops.insert(crate_atop_entity);
-                bases.insert(step_entity);
-
-                atop_any = true;
+                current_atops.insert(*atop_entity);
+                atops.insert(*atop_entity);
+                bases.insert(*below_entity);
             }
         }
     }
@@ -335,24 +304,20 @@ fn gravity_system(
 
             // HACKHACK
             // introduce some concept of grounding?
-            match steps.get(*entity) {
-                Ok(_) => {
-                    current_velocity = velocity.clone();
-                }
-                Err(_) => {
-                    *velocity = current_velocity.clone();
-                }
+
+            if velocity.0.y > current_velocity.0.y {
+                current_velocity = velocity.clone();
+            } else {
+                *velocity = current_velocity.clone();
             }
         }
-
-        dbg!(path);
     }
 }
 
 // generates all complete paths
 fn build_paths<'a>(
     roots: impl Iterator<Item = &'a Entity>,
-    edges: HashMap<Entity, Vec<Entity>>,
+    edges: HashMap<Entity, HashSet<Entity>>,
 ) -> Vec<Vec<Entity>> {
     let mut result = vec![];
 
@@ -363,7 +328,7 @@ fn build_paths<'a>(
     result
 }
 
-fn path_helper(current: Entity, edges: &HashMap<Entity, Vec<Entity>>) -> Vec<Vec<Entity>> {
+fn path_helper(current: Entity, edges: &HashMap<Entity, HashSet<Entity>>) -> Vec<Vec<Entity>> {
     // base case, no edges
 
     match edges.get(&current) {
@@ -393,7 +358,7 @@ struct Crate;
 
 fn x_collision_correction(
     mut crates: Query<(&Crate, &mut Transform, &BoundingBox)>,
-    steps: Query<(&Step, &GlobalTransform, &BoundingBox)>,
+    steps: Query<(&Step, &Transform, &BoundingBox)>,
 ) {
     for (_crate, mut crate_transform, crate_box) in crates.iter_mut() {
         let crate_top = crate_transform.translation.y + crate_box.0.y / 2.0;
