@@ -110,6 +110,17 @@ fn setup(
         .with(Ground {})
         .with(BoundingBox(Vec2::new(200.0, 50.0)))
         .with(Velocity(Vec2::zero()));
+
+        commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
 }
 
 fn steps(
@@ -261,7 +272,7 @@ fn is_atop(
 
 fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
     for (mut velocity) in ungrounded.iter_mut() {
-        *velocity = Velocity(Vec2::new(0.0, 0.0));
+        *velocity = Velocity(Vec2::new(0.0, -1.0));
     }
 }
 
@@ -269,6 +280,7 @@ fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn propagate_velocity(
     mut nodes: Query<(Entity, &Transform, &BoundingBox)>,
+    mut bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
 
     grounds: Query<(&Ground, Entity)>,
@@ -295,7 +307,7 @@ fn propagate_velocity(
     }
 
     for (atop_entity, atop_transform, atop_box) in nodes.iter() {
-        for (below_entity, below_transform, below_box) in nodes.iter() {
+        for (below_entity, below_transform, below_box) in bases_query.iter() {
             dbg!(atop_entity);
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
                 let current_atops = edges.entry(below_entity).or_insert(HashSet::new());
