@@ -9,27 +9,27 @@ struct BoundingBox(Vec2);
 
 struct Escalator;
 
-fn steps(escalator: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
+fn steps(escalator_transform: &Transform, escalator_box: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
 
     // A
     result.push((
         Transform::from_translation(Vec3::new(
-            -escalator.0.x / 2.0 + step.0.x / 2.0,
-            escalator.0.y / 2.0 - step.0.y / 2.0,
+            escalator_transform.translation.x -escalator_box.0.x / 2.0 + step.0.x / 2.0,
+            escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
             0.0,
         )),
         Arm::A,
     ));
 
     // B
-    let n = (escalator.0.y / step.0.y) as i32;
+    let n = (escalator_box.0.y / step.0.y) as i32;
 
     for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
-                -escalator.0.x / 2.0 + step.0.x / 2.0 + index as f32 * step.0.x,
-                escalator.0.y / 2.0 - 3.0 * step.0.y / 2.0 - index as f32 * step.0.y,
+                escalator_transform.translation.x -escalator_box.0.x / 2.0 + step.0.x / 2.0 + index as f32 * step.0.x,
+                escalator_transform.translation.y + escalator_box.0.y / 2.0 - 3.0 * step.0.y / 2.0 - index as f32 * step.0.y,
                 0.0,
             )),
             Arm::B,
@@ -39,8 +39,8 @@ fn steps(escalator: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
     // C
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator.0.x / 2.0 - 3.0 * step.0.y / 2.0,
-            -escalator.0.y / 2.0 + step.0.y / 2.0,
+            escalator_transform.translation.x  + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
+            escalator_transform.translation.y -escalator_box.0.y / 2.0 + step.0.y / 2.0,
             0.0,
         )),
         Arm::C,
@@ -50,8 +50,8 @@ fn steps(escalator: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
     for index in 0..n - 1 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator.0.x / 2.0 - step.0.x / 2.0 - (index as f32) * step.0.x,
-                -escalator.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
+                escalator_transform.translation.x  + escalator_box.0.x / 2.0 - step.0.x / 2.0 - (index as f32) * step.0.x,
+                -escalator_box.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
                 0.0,
             )),
             Arm::D,
@@ -62,6 +62,7 @@ fn steps(escalator: &BoundingBox, step: &BoundingBox) -> Vec<(Transform, Arm)> {
 
 struct Step {
     arm: Arm,
+    escalator: Entity,
 }
 
 enum Arm {
@@ -106,7 +107,7 @@ fn setup(
 
     let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
-    commands
+    let escalator = commands
         .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 color: Color::rgba(1.0, 1.0, 1.0, 0.5),
@@ -122,45 +123,57 @@ fn setup(
             ..Default::default()
         })
         .with(Escalator {})
-        .with_children(|parent| {
-            let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-            for (step_transform, arm) in steps(&escalator_box, &step_box) {
-                parent
-                    .spawn(SpriteBundle {
-                        material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                        transform: step_transform,
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(step_box.clone())
-                    .with(Step { arm })
-                    .with(Velocity(Vec2::zero()));
-            }
+        .with(escalator_box.clone())
+        .current_entity()
+        .expect("Parent");
 
-            // A
-        })
-        .with(escalator_box);
+    let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+    for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                transform: step_transform,
+                sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                ..Default::default()
+            })
+            .with(step_box.clone())
+            .with(Step { arm, escalator })
+            .with(Velocity(Vec2::zero()));
+    }
+
+    // A
+
+    // commands
+    //     .spawn(SpriteBundle {
+    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //         transform: Transform::from_translation(Vec3::new(100.0, 125.0, 1.0)),
+    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+    //         ..Default::default()
+    //     })
+    //     .with(Crate {})
+    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
+    //     .with(Velocity(Vec2::zero()));
+
+    // commands
+    //     .spawn(SpriteBundle {
+    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //         transform: Transform::from_translation(Vec3::new(100.0, 175.0, 1.0)),
+    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+    //         ..Default::default()
+    //     })
+    //     .with(Crate {})
+    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
+    //     .with(Velocity(Vec2::zero()));
 
     commands
         .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 125.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(0.0, -200.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(200.0, 50.0)),
             ..Default::default()
         })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()));
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 175.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Ground {})
+        .with(BoundingBox(Vec2::new(200.0, 50.0)))
         .with(Velocity(Vec2::zero()));
 }
 
@@ -191,51 +204,40 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
 }
 
 fn update_step_arm(
-    parents_query: Query<(Entity, &Children)>,
-
-    mut steps: Query<&mut Step>,
-    step_boxes: Query<&BoundingBox>,
-    escalators: Query<&BoundingBox>,
-
-    transform_query: Query<&Transform>,
+    mut steps: Query<(&mut Step, &BoundingBox, &Transform)>,
+    escalators: Query<(&Escalator, &BoundingBox, &Transform)>,
 ) {
-    for (parent, children) in parents_query.iter() {
-        let escalator = escalators.get(parent).expect("parent");
+    for (mut step, step_box, step_transform) in steps.iter_mut() {
+        let (escalator, escalator_box, escalator_transform) =
+            escalators.get(step.escalator).expect("fetch escalator");
 
-        for child in children.iter() {
-            let mut step = steps.get_mut(*child).expect("step");
-            let step_box = step_boxes.get(*child).expect("step box");
+        let step_top = step_transform.translation.y + step_box.0.y / 2.0;
+        let step_bottom = step_transform.translation.y - step_box.0.y / 2.0;
+        let step_right = step_transform.translation.x + step_box.0.x / 2.0;
 
-            let step_transform = transform_query.get(*child).expect("step transform");
+        let escalator_top = escalator_transform.translation.y + escalator_box.0.y / 2.0;
+        let escalator_bottom = escalator_transform.translation.y - escalator_box.0.y / 2.0;
+        let escalator_right = escalator_transform.translation.x + escalator_box.0.x / 2.0;
 
-            let step_top = step_transform.translation.y + step_box.0.y / 2.0;
-            let step_bottom = step_transform.translation.y - step_box.0.y / 2.0;
-            let step_right = step_transform.translation.x + step_box.0.x / 2.0;
-
-            let escalator_top = escalator.0.y / 2.0;
-            let escalator_bottom = -escalator.0.y / 2.0;
-            let escalator_right = escalator.0.x / 2.0;
-
-            match step.arm {
-                Arm::A => {
-                    if step_bottom == escalator_top - 2.0 * step_box.0.y {
-                        step.arm = Arm::B;
-                    }
+        match step.arm {
+            Arm::A => {
+                if step_bottom == escalator_top - 2.0 * step_box.0.y {
+                    step.arm = Arm::B;
                 }
-                Arm::B => {
-                    if step_bottom == escalator_bottom {
-                        step.arm = Arm::C;
-                    }
+            }
+            Arm::B => {
+                if step_bottom == escalator_bottom {
+                    step.arm = Arm::C;
                 }
-                Arm::C => {
-                    if step_right == escalator_right {
-                        step.arm = Arm::D;
-                    }
+            }
+            Arm::C => {
+                if step_right == escalator_right {
+                    step.arm = Arm::D;
                 }
-                Arm::D => {
-                    if step_top == escalator_top {
-                        step.arm = Arm::A;
-                    }
+            }
+            Arm::D => {
+                if step_top == escalator_top {
+                    step.arm = Arm::A;
                 }
             }
         }
@@ -268,9 +270,12 @@ fn gravity_system(
 
     steps: Query<(&Step, Entity, &GlobalTransform, &BoundingBox)>,
 
+    escalators: Query<(&Escalator, Entity, &Transform, &BoundingBox)>,
+    grounds: Query<(&Ground, Entity, &Transform, &BoundingBox)>,
+
     mut velocities: Query<(&mut Velocity)>,
 ) {
-
+    // somehow want to skip Steps in this query? -> Without
 
     // need smarter handling of step / escalator for moving escalator
     let mut edges: HashMap<Entity, Vec<Entity>> = HashMap::new();
@@ -278,21 +283,11 @@ fn gravity_system(
     let mut bases: HashSet<Entity> = HashSet::default();
     let mut atops: HashSet<Entity> = HashSet::default();
 
-    for (
-        _crate_atop,
-        crate_atop_entity,
-        crate_atop_transform,
-        crate_atop_box,
-    ) in crates.iter()
-    {
+    for (_crate_atop, crate_atop_entity, crate_atop_transform, crate_atop_box) in crates.iter() {
         let mut atop_any = false;
 
-        for (
-            _crate_below,
-            crate_below_entity,
-            crate_below_transform,
-            crate_below_box,
-        ) in crates.iter()
+        for (_crate_below, crate_below_entity, crate_below_transform, crate_below_box) in
+            crates.iter()
         {
             if is_atop(
                 crate_atop_transform,
@@ -332,11 +327,9 @@ fn gravity_system(
     let roots = bases.difference(&atops);
 
     for path in build_paths(roots, edges) {
-
         let mut current_velocity = Velocity(Vec2::new(0.0, -1.0));
 
         for (index, entity) in path.iter().enumerate() {
-
             let mut velocity = velocities.get_mut(*entity).expect("velocity query");
             // add in intrinsic velocity here
 
@@ -353,7 +346,6 @@ fn gravity_system(
         }
 
         dbg!(path);
-
     }
 }
 
@@ -394,8 +386,10 @@ fn path_helper(current: Entity, edges: &HashMap<Entity, Vec<Entity>>) -> Vec<Vec
 #[derive(Clone)]
 struct Velocity(Vec2);
 
+struct Ground;
+
 #[derive(PartialEq, Eq, Hash)]
-struct Crate {}
+struct Crate;
 
 fn x_collision_correction(
     mut crates: Query<(&Crate, &mut Transform, &BoundingBox)>,
