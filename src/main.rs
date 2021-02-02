@@ -270,6 +270,9 @@ fn gravity_system(
 
     mut velocities: Query<(&mut Velocity)>,
 ) {
+
+
+    // need smarter handling of step / escalator for moving escalator
     let mut edges: HashMap<Entity, Vec<Entity>> = HashMap::new();
 
     let mut bases: HashSet<Entity> = HashSet::default();
@@ -337,6 +340,8 @@ fn gravity_system(
             let mut velocity = velocities.get_mut(*entity).expect("velocity query");
             // add in intrinsic velocity here
 
+            // HACKHACK
+            // introduce some concept of grounding?
             match steps.get(*entity) {
                 Ok(_) => {
                     current_velocity = velocity.clone();
@@ -350,8 +355,6 @@ fn gravity_system(
         dbg!(path);
 
     }
-
-    // somehow want to account for things not atop anything?
 }
 
 // generates all complete paths
