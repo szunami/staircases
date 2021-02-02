@@ -121,6 +121,18 @@ fn setup(
         .with(Crate {})
         .with(BoundingBox(Vec2::new(50.0, 50.0)))
         .with(Velocity(Vec2::zero()));
+
+
+        commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
 }
 
 fn steps(
