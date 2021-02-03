@@ -1,0 +1,6 @@
+- player
+  - interaction -> intrinsic velocity
+- more robust collision detection
+  - y colision detection / pushing (+ propagation)
+- horizontal stacks
+- level editing
