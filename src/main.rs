@@ -1,20 +1,30 @@
 use std::collections::{HashMap, HashSet};
 
-use bevy::prelude::*;
+use bevy::{diagnostic::Diagnostics, prelude::*};
 
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
+        .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
+        // .add_startup_system(setup2.system())
+        // .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
-        .add_system(ground_velocity.system())
-        .add_system(propagate_velocity.system())
+        .add_system(reset_ungrounded_velocity.system())
+        .add_system(propagate_velocity_horizontally.system())
+        .add_system(propagate_velocity_vertically.system())
         .add_system(update_position.system())
         .add_system(update_step_arm.system())
         .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
+}
+
+fn framerate(diagnostics: Res<Diagnostics>) {
+    if let Some(fps) = diagnostics.get(bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS) {
+        dbg!(fps.average());
+    }
 }
 
 #[derive(Clone)]
@@ -179,6 +189,69 @@ fn setup(
         .with(IntrinsicVelocity(Vec2::zero()));
 }
 
+fn setup2(
+    commands: &mut Commands,
+
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let walk_handle = asset_server.load("textures/base.png");
+    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
+
+    commands
+        .spawn(Camera2dBundle::default())
+        .spawn(CameraUiBundle::default());
+
+    {
+        let ground_box = Vec2::new(400.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, -50.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(Vec2::zero()));
+    }
+
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(60.0, 0.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
+        // commands
+        // .spawn(SpriteBundle {
+        //     material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+        //     transform: Transform::from_translation(Vec3::new(100.0, 0.0, 1.0)),
+        //     sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+        //     ..Default::default()
+        // })
+        // .with(Crate {})
+        // .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        // .with(Velocity(Vec2::zero()));
+
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Player {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()))
+        .with(IntrinsicVelocity(Vec2::zero()));
+}
+
 fn steps(
     escalator_transform: &Transform,
     escalator_box: &BoundingBox,
@@ -281,6 +354,10 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += velocity.0.x;
         transform.translation.y += velocity.0.y;
+
+        if (velocity.0.x > 0.0) {
+            dbg!(transform.translation);
+        }
     }
 }
 
@@ -344,15 +421,89 @@ fn is_atop(
             || (below_left <= atop_left && atop_left < below_right))
 }
 
-fn ground_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
+fn reset_ungrounded_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
     for mut velocity in ungrounded.iter_mut() {
         *velocity = Velocity(Vec2::new(0.0, f32::MIN));
     }
 }
 
+
+fn propagate_velocity_horizontally(
+    query: Query<(Entity, &Transform, &BoundingBox)>,
+    intrinsic_velocities: Query<&IntrinsicVelocity>,
+
+    mut velocities: Query<&mut Velocity>,
+){
+    // might want to link steps / staircases?
+    // maintain L edges and R edges?
+
+    let mut left_edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
+    let mut left_bases: HashSet<Entity> = HashSet::new();
+    let mut left_nonbases: HashSet<Entity> = HashSet::new();
+
+    for (left_entity, left_transform, left_box) in query.iter() {
+        for (right_entity, right_transform, right_box) in query.iter() {
+            if is_beside(left_transform, left_box, right_transform, right_box) {
+                dbg!("beside!");
+                let current_lefts = left_edges.entry(left_entity).or_insert(HashSet::new());
+
+                current_lefts.insert(right_entity);
+                left_bases.insert(left_entity);
+                left_nonbases.insert(right_entity);
+            }
+        }
+    }
+
+    let left_roots = left_bases.difference(&left_nonbases);
+
+    let paths = build_paths(left_roots, left_edges);
+
+    if paths.len() != 0 {
+        dbg!(paths.len());
+    }
+
+    for path in paths {
+        let mut max_velocity_so_far: f32 = 0.0;
+
+        for entity in path.iter() {
+            if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
+                max_velocity_so_far = max_velocity_so_far.max(intrinsic_velocity.0.x);
+            }
+
+            let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
+            node_velocity.0.x = max_velocity_so_far;
+
+            // dbg!(node_velocity.0);
+
+        }
+
+
+    }
+}
+
+fn is_beside(
+    left_transform: &Transform,
+    left_box: &BoundingBox,
+    right_transform: &Transform,
+    right_box: &BoundingBox,
+) -> bool {
+    let left_bottom = left_transform.translation.y - left_box.0.y / 2.0;
+    let left_top = left_transform.translation.y + left_box.0.y / 2.0;
+    let left_right = left_transform.translation.x + left_box.0.x / 2.0;
+
+    let right_top = right_transform.translation.y + right_box.0.y / 2.0;
+    let right_bottom = right_transform.translation.y - right_box.0.y / 2.0;
+    let right_left = right_transform.translation.x - right_box.0.x / 2.0;
+
+    (left_right - right_left).abs() < std::f32::EPSILON
+        && ((left_bottom <= right_bottom && right_bottom < left_top)
+            || (right_bottom <= left_bottom && left_bottom < right_top))
+}
+
+
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
-fn propagate_velocity(
+fn propagate_velocity_vertically(
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
@@ -415,8 +566,12 @@ fn propagate_velocity(
             // somehow max here
 
             if cumulative_velocity.0.y > node_velocity.0.y {
-                *node_velocity = cumulative_velocity.clone();
+                // could have x velocity from prior propagation
+                node_velocity.0.x += cumulative_velocity.0.x;
+
+                node_velocity.0.y = cumulative_velocity.0.y;
             }
+            // dbg!(node_velocity.0);
         }
     }
 }
