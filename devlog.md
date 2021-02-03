@@ -2,18 +2,22 @@
 ---
 - more robust collision detection
   - y colision detection / pushing (+ propagation)
+  - perhaps implies some sort of prioritization?
+    - whoever was "already there"?
 - horizontal stacks
 - level editing
 
 ## BUGS:
 ---
-- player can tank grounded platform; add grounding check to intermediates?
+- prefer existing atop? current behavior is jittery
 
 
 ## 20210203
 ---
 - player
   - interaction -> intrinsic velocity
+- fixed: player can tank grounded platform; add grounding check to intermediates?
+
 
 ## 20210202
 ---
