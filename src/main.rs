@@ -7,6 +7,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
         .add_system(step_intrinsic_velocity.system())
+        .add_system(player_intrinsic_velocity.system())
         .add_system(ground_velocity.system())
         .add_system(propagate_velocity.system())
         .add_system(update_position.system())
@@ -42,6 +43,8 @@ struct Ground;
 
 #[derive(PartialEq, Eq, Hash)]
 struct Crate;
+
+struct Player;
 
 fn setup(
     commands: &mut Commands,
@@ -130,7 +133,6 @@ fn setup(
             .with(Velocity(Vec2::zero()));
     }
 
-
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
@@ -163,6 +165,18 @@ fn setup(
         .with(Crate {})
         .with(BoundingBox(Vec2::new(50.0, 50.0)))
         .with(Velocity(Vec2::zero()));
+
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_translation(Vec3::new(00.0, 350.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Player {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()))
+        .with(IntrinsicVelocity(Vec2::zero()));
 }
 
 fn steps(
@@ -217,13 +231,31 @@ fn steps(
                 escalator_transform.translation.x + escalator_box.0.x / 2.0
                     - step.0.x / 2.0
                     - (index as f32) * step.0.x,
-                    escalator_transform.translation.y + -escalator_box.0.y / 2.0 + (step.0.y) / 2.0 + (index as f32) * step.0.y,
+                escalator_transform.translation.y
+                    + -escalator_box.0.y / 2.0
+                    + (step.0.y) / 2.0
+                    + (index as f32) * step.0.y,
                 0.0,
             )),
             Arm::D,
         ));
     }
     result
+}
+
+fn player_intrinsic_velocity(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut query: Query<(&Player, &mut IntrinsicVelocity)>,
+) {
+    for (_player, mut velocity) in query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::A) {
+            velocity.0.x = -1.0;
+        } else if keyboard_input.pressed(KeyCode::D) {
+            velocity.0.x = 1.0;
+        } else {
+            velocity.0.x = 0.0;
+        }
+    }
 }
 
 fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
