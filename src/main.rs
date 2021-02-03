@@ -395,14 +395,15 @@ fn propagate_velocity(
     let roots = bases.difference(&atops);
 
     for path in build_paths(roots, edges) {
-        let base = path.first().expect("first");
-
-        let mut cumulative_velocity = match grounds.get(*base) {
-            Ok(_) => Velocity(Vec2::zero()),
-            Err(_) => Velocity(Vec2::new(0.0, -1.0)),
-        };
+        let mut cumulative_velocity = Velocity(Vec2::new(0.0, -1.0));
 
         for entity in path.iter() {
+            // want to recheck grounding at each layer
+
+            if let Ok(_) = grounds.get(*entity) {
+                cumulative_velocity = Velocity(Vec2::zero());
+            };
+
             let mut node_velocity = velocities.get_mut(*entity).expect("velocity query");
             // add in intrinsic velocity here
 
