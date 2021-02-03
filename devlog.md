@@ -10,6 +10,7 @@
 ## BUGS:
 ---
 - prefer existing atop? current behavior is jittery
+- issue: player double counts horizontal velocity. fix this
 
 
 ## 20210203
