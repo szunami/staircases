@@ -142,6 +142,20 @@ fn setup(
             .with(Velocity(Vec2::zero()));
     }
 
+    {
+        let ground_box = Vec2::new(400.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-400.0, -150.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(Vec2::zero()));
+    }
+
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
@@ -377,10 +391,10 @@ fn initialize_velocity(
 // do we just need to handle steps outside of this?
 
 fn propagate_velocity_horizontally(
-    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Ground>)>,
-    right_query: Query<(Entity, &Transform, &BoundingBox), (Without<Step>, Without<Ground>)>,
-    intrinsic_velocities: Query<&IntrinsicVelocity>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
+    right_query: Query<(Entity, &Transform, &BoundingBox), (Without<Step>)>,
 
+    ground_query: Query<&Ground>,
     mut velocities: Query<&mut Velocity>,
 ) {
     {
@@ -418,7 +432,9 @@ fn propagate_velocity_horizontally(
         for path in paths {
             let mut max_velocity_so_far = 0.0;
 
-            for entity in path.iter() {
+            let mut rightmost_ground: Option<usize> = None;
+
+            for (index, entity) in path.iter().enumerate() {
                 // transfer positive x momentum only
                 // don't want to swallow negative velocity (?)
 
@@ -427,6 +443,19 @@ fn propagate_velocity_horizontally(
                 if node_velocity.0.x >= 0.0 {
                     node_velocity.0.x = node_velocity.0.x.max(max_velocity_so_far);
                     max_velocity_so_far = node_velocity.0.x;
+                }
+
+                if ground_query.get(*entity).is_ok() {
+                    rightmost_ground = Some(index);
+                }
+            }
+
+            // account for ground:
+            // everything left of last ground can only go left
+            if let Some(rightmost_ground) = rightmost_ground {
+                for entity in path.iter().take(rightmost_ground + 1) {
+                    let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
+                    node_velocity.0.x = node_velocity.0.x.min(0.0);
                 }
             }
         }
@@ -468,8 +497,9 @@ fn propagate_velocity_horizontally(
         // going right to left
         for path in paths {
             let mut min_velocity_so_far = 0.0;
+            let mut leftmost_ground: Option<usize> = None;
 
-            for entity in path.iter() {
+            for (index, entity) in path.iter().enumerate() {
                 // transfer negative x momentum only
                 // don't want to swallow positive velocity (?)
                 let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
@@ -477,6 +507,19 @@ fn propagate_velocity_horizontally(
                 if node_velocity.0.x <= 0.0 {
                     node_velocity.0.x = node_velocity.0.x.min(min_velocity_so_far);
                     min_velocity_so_far = node_velocity.0.x;
+                }
+
+                if ground_query.get(*entity).is_ok() {
+                    leftmost_ground = Some(index);
+                }
+            }
+
+            // account for ground:
+            // everything right of last ground can only go right
+            if let Some(leftmost_ground) = leftmost_ground {
+                for entity in path.iter().take(leftmost_ground + 1) {
+                    let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
+                    node_velocity.0.x = node_velocity.0.x.max(0.0);
                 }
             }
         }
