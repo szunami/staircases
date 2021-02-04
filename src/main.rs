@@ -6,7 +6,7 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
-        .add_startup_system(setup.system())
+        .add_startup_system(setup2.system())
         .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
@@ -15,7 +15,7 @@ fn main() {
         .add_system(propagate_velocity_vertically.system())
         .add_system(update_position.system())
         .add_system(update_step_arm.system())
-        // .add_system(x_collision_correction.system())
+        .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
@@ -54,6 +54,165 @@ struct Ground;
 struct Crate;
 
 struct Player;
+
+fn setup2(
+    commands: &mut Commands,
+
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+
+    let walk_handle = asset_server.load("textures/base.png");
+    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
+
+    let walk_handle = texture_atlases.add(walk_atlas);
+
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_translation(Vec3::new(00.0, 350.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Player {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()))
+        .with(IntrinsicVelocity(Vec2::zero()));
+
+    commands
+        .spawn(Camera2dBundle::default())
+        .spawn(CameraUiBundle::default());
+
+        {
+            let ground_box = Vec2::new(400.0, 50.0);
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                    sprite: Sprite::new(ground_box),
+                    ..Default::default()
+                })
+                .with(Ground {})
+                .with(BoundingBox(ground_box))
+                .with(Velocity(Vec2::zero()));
+        }
+
+        {
+            let ground_box = Vec2::new(400.0, 50.0);
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                    transform: Transform::from_translation(Vec3::new(0.0, -150.0, 1.0)),
+                    sprite: Sprite::new(ground_box),
+                    ..Default::default()
+                })
+                .with(Ground {})
+                .with(BoundingBox(ground_box))
+                .with(Velocity(Vec2::zero()));
+        }
+        {
+            let ground_box = Vec2::new(400.0, 50.0);
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                    transform: Transform::from_translation(Vec3::new(-50.0, -200.0, 1.0)),
+                    sprite: Sprite::new(ground_box),
+                    ..Default::default()
+                })
+                .with(Ground {})
+                .with(BoundingBox(ground_box))
+                .with(Velocity(Vec2::zero()));
+        }
+
+        {
+            let ground_box = Vec2::new(200.0, 200.0);
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                    transform: Transform::from_translation(Vec3::new(-500.0, -75.0, 1.0)),
+                    sprite: Sprite::new(ground_box),
+                    ..Default::default()
+                })
+                .with(Ground {})
+                .with(BoundingBox(ground_box))
+                .with(Velocity(Vec2::zero()));
+        }
+
+        {
+            let ground_box = Vec2::new(50.0, 50.0);
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                    transform: Transform::from_translation(Vec3::new(-500.0, 100.0, 1.0)),
+                    sprite: Sprite::new(ground_box),
+                    ..Default::default()
+                })
+                .with(Ground {})
+                .with(BoundingBox(ground_box))
+                .with(Velocity(Vec2::zero()));
+        }
+
+        {
+            let escalator_transform = Transform::from_translation(Vec3::new(-300.0, -75.0, 0.0));
+    
+            let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+    
+            let escalator = commands
+                .spawn(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite {
+                        color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                        ..TextureAtlasSprite::default()
+                    },
+    
+                    visible: Visible {
+                        is_visible: true,
+                        is_transparent: true,
+                    },
+                    texture_atlas: walk_handle.clone_weak(),
+                    transform: escalator_transform,
+                    ..Default::default()
+                })
+                .with(Escalator {})
+                .with(Velocity(Vec2::zero()))
+                .with(escalator_box.clone())
+                .current_entity()
+                .expect("Parent");
+    
+            let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+            for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+                commands
+                    .spawn(SpriteBundle {
+                        material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                        transform: step_transform,
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(step_box.clone())
+                    .with(Step { arm, escalator })
+                    .with(Velocity(Vec2::zero()))
+                    .with(IntrinsicVelocity(Vec2::zero()));
+            }
+        }
+
+        {
+            let crate_box = Vec2::new(200.0, 50.0);
+
+            commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(Velocity(Vec2::zero()));
+        }
+
+
+}
 
 fn setup(
     commands: &mut Commands,
