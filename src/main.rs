@@ -6,9 +6,8 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
-        // .add_startup_system(setup.system())
-        .add_startup_system(setup2.system())
-        // .add_system(framerate.system())
+        .add_startup_system(setup.system())
+        .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
         .add_system(reset_ungrounded_velocity.system())
@@ -74,7 +73,7 @@ fn setup(
         .spawn(CameraUiBundle::default());
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::new(100.0, 0.0, 0.0));
+        let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
         let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
@@ -189,69 +188,6 @@ fn setup(
         .with(IntrinsicVelocity(Vec2::zero()));
 }
 
-fn setup2(
-    commands: &mut Commands,
-
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let walk_handle = asset_server.load("textures/base.png");
-    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
-
-    commands
-        .spawn(Camera2dBundle::default())
-        .spawn(CameraUiBundle::default());
-
-    {
-        let ground_box = Vec2::new(400.0, 50.0);
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, -50.0, 1.0)),
-                sprite: Sprite::new(ground_box),
-                ..Default::default()
-            })
-            .with(Ground {})
-            .with(BoundingBox(ground_box))
-            .with(Velocity(Vec2::zero()));
-    }
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(60.0, 0.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()));
-        // commands
-        // .spawn(SpriteBundle {
-        //     material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-        //     transform: Transform::from_translation(Vec3::new(100.0, 0.0, 1.0)),
-        //     sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-        //     ..Default::default()
-        // })
-        // .with(Crate {})
-        // .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        // .with(Velocity(Vec2::zero()));
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Player {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()))
-        .with(IntrinsicVelocity(Vec2::zero()));
-}
-
 fn steps(
     escalator_transform: &Transform,
     escalator_box: &BoundingBox,
@@ -354,11 +290,6 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += velocity.0.x;
         transform.translation.y += velocity.0.y;
-
-        if (velocity.0.x > 0.0) {
-            dbg!(velocity.0);
-            dbg!(transform.translation);
-        }
     }
 }
 
@@ -422,67 +353,155 @@ fn is_atop(
             || (below_left <= atop_left && atop_left < below_right))
 }
 
-fn reset_ungrounded_velocity(mut ungrounded: Query<&mut Velocity, Without<Ground>>) {
-    for mut velocity in ungrounded.iter_mut() {
-        *velocity = Velocity(Vec2::new(0.0, f32::MIN));
+fn reset_ungrounded_velocity(
+    mut ungrounded: Query<(Entity, &mut Velocity), Without<Ground>>,
+    intrinsic_velocities: Query<&IntrinsicVelocity>,
+) {
+    for (entity, mut velocity) in ungrounded.iter_mut() {
+        match intrinsic_velocities.get(entity) {
+            Ok(intrinsic_velocity) => {
+                velocity.0 = intrinsic_velocity.0;
+            }
+            Err(_) => {
+                velocity.0 = Vec2::zero();
+            }
+        }
     }
 }
 
+// you can push an escalator from the left, not the right
+// pushing a step has to push the escalator
+// pushable, non-pushable,
 
 fn propagate_velocity_horizontally(
-    query: Query<(Entity, &Transform, &BoundingBox)>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Ground>)>,
+    right_query: Query<(Entity, &Transform, &BoundingBox), (Without<Step>, Without<Ground>)>,
     intrinsic_velocities: Query<&IntrinsicVelocity>,
 
     mut velocities: Query<&mut Velocity>,
-){
-    // might want to link steps / staircases?
-    // maintain L edges and R edges?
+) {
+    {
+        // might want to link steps / staircases?
+        // maintain L edges and R edges?
 
-    let mut left_edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
-    let mut left_bases: HashSet<Entity> = HashSet::new();
-    let mut left_nonbases: HashSet<Entity> = HashSet::new();
+        let mut left_edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
+        let mut left_bases: HashSet<Entity> = HashSet::new();
+        let mut left_nonbases: HashSet<Entity> = HashSet::new();
 
-    for (left_entity, left_transform, left_box) in query.iter() {
-        let mut beside_anything = false;
+        for (left_entity, left_transform, left_box) in left_query.iter() {
+            let mut beside_anything = false;
 
-        for (right_entity, right_transform, right_box) in query.iter() {
-            if is_beside(left_transform, left_box, right_transform, right_box) {
-                dbg!("beside!");
-                let current_lefts = left_edges.entry(left_entity).or_insert(HashSet::new());
+            for (right_entity, right_transform, right_box) in right_query.iter() {
+                if is_beside(left_transform, left_box, right_transform, right_box) {
+                    dbg!("beside!");
+                    let current_lefts = left_edges.entry(left_entity).or_insert(HashSet::new());
 
-                current_lefts.insert(right_entity);
+                    current_lefts.insert(right_entity);
+                    left_bases.insert(left_entity);
+                    left_nonbases.insert(right_entity);
+                    beside_anything = true;
+                }
+            }
+
+            if !beside_anything {
                 left_bases.insert(left_entity);
-                left_nonbases.insert(right_entity);
-                beside_anything = true;
             }
         }
 
-        if !beside_anything {
-            left_bases.insert(left_entity);
+        let left_roots = left_bases.difference(&left_nonbases);
+
+        let paths = build_paths(left_roots, left_edges);
+
+        // going left to right
+        for path in paths {
+            let mut max_velocity_so_far: Option<f32> = None;
+
+            for entity in path.iter() {
+                // apply x velocity to self
+                // transfer positive x momentum only
+                if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
+                    match max_velocity_so_far {
+                        Some(velocity) => {
+                            max_velocity_so_far = Some(velocity.max(intrinsic_velocity.0.x));
+                        }
+                        None => {
+                            // only propagate if its actually moving right (?)
+                            if intrinsic_velocity.0.x > 0.0 {
+                                max_velocity_so_far = Some(intrinsic_velocity.0.x);
+                            }
+                        }
+                    }
+                }
+
+                let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
+
+                if let Some(velocity) = max_velocity_so_far {
+                    node_velocity.0.x = velocity;
+                }
+            }
         }
     }
 
-    let left_roots = left_bases.difference(&left_nonbases);
+    {
+        // might want to link steps / staircases? depending on orientation?
+        // maintain L edges and R edges?
 
-    let paths = build_paths(left_roots, left_edges);
+        let mut right_edges: HashMap<Entity, HashSet<Entity>> = HashMap::new();
+        let mut right_bases: HashSet<Entity> = HashSet::new();
+        let mut right_nonbases: HashSet<Entity> = HashSet::new();
 
-    if paths.len() != 0 {
-        dbg!(paths.len());
-    }
+        for (right_entity, right_transform, right_box) in right_query.iter() {
+            let mut beside_anything = false;
 
-    for path in paths {
-        let mut max_velocity_so_far: f32 = 0.0;
+            for (left_entity, left_transform, left_box) in left_query.iter() {
+                if is_beside(left_transform, left_box, right_transform, right_box) {
+                    dbg!("beside!");
+                    let current_rights = right_edges.entry(right_entity).or_insert(HashSet::new());
 
-        for entity in path.iter() {
-            if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
-                max_velocity_so_far = max_velocity_so_far.max(intrinsic_velocity.0.x);
+                    current_rights.insert(left_entity);
+                    right_bases.insert(right_entity);
+                    right_nonbases.insert(left_entity);
+                    beside_anything = true;
+                }
             }
 
-            let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
-            node_velocity.0.x = max_velocity_so_far;
+            if !beside_anything {
+                right_bases.insert(right_entity);
+            }
         }
 
+        let right_roots = right_bases.difference(&right_nonbases);
 
+        let paths = build_paths(right_roots, right_edges);
+
+        // going right to left
+        for path in paths {
+            let mut min_velocity_so_far: Option<f32> = None;
+
+            for entity in path.iter() {
+                // apply x velocity to self
+                // transfer positive x momentum only
+                if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
+                    match min_velocity_so_far {
+                        Some(velocity) => {
+                            min_velocity_so_far = Some(velocity.min(intrinsic_velocity.0.x));
+                        }
+                        None => {
+                            // only propagate if actually moving left
+                            if intrinsic_velocity.0.x < 0.0 {
+                                min_velocity_so_far = Some(intrinsic_velocity.0.x);
+                            }
+                        }
+                    }
+                }
+
+                let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
+
+                if let Some(velocity) = min_velocity_so_far {
+                    node_velocity.0.x = velocity;
+                }
+            }
+        }
     }
 }
 
@@ -505,7 +524,6 @@ fn is_beside(
             || (right_bottom <= left_bottom && left_bottom < right_top))
 }
 
-
 // TODO: maybe rewrite this using itertools instead of a QuerySet
 // See: https://docs.rs/itertools/0.10.0/itertools/trait.Itertools.html#method.permutations
 fn propagate_velocity_vertically(
@@ -514,8 +532,6 @@ fn propagate_velocity_vertically(
     steps: Query<(&Step, Entity)>,
 
     grounds: Query<(&Ground, Entity)>,
-
-    intrinsic_velocities: Query<&IntrinsicVelocity>,
 
     mut velocities: Query<&mut Velocity>,
 ) {
@@ -550,32 +566,28 @@ fn propagate_velocity_vertically(
 
     let roots = bases.difference(&atops);
 
+    let mut already_visited: HashSet<Entity> = HashSet::new();
+
     for path in build_paths(roots, edges) {
-        let mut cumulative_velocity = Velocity(Vec2::new(0.0, -1.0));
+        let mut cumulative_velocity = Vec2::new(0.0, -1.0);
 
         for entity in path.iter() {
-            // want to recheck grounding at each layer
+            let mut node_velocity = velocities.get_mut(*entity).expect("velocity query");
+
+            if already_visited.contains(entity) {
+                // don't double visit!
+                cumulative_velocity = node_velocity.0;
+                continue;
+            }
+
+            already_visited.insert(*entity);
 
             if let Ok(_) = grounds.get(*entity) {
-                cumulative_velocity = Velocity(Vec2::zero());
+                cumulative_velocity = Vec2::zero();
             };
 
-            let mut node_velocity = velocities.get_mut(*entity).expect("velocity query");
-            // add in intrinsic velocity here
-
-            if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
-                cumulative_velocity.0.y += intrinsic_velocity.0.y;
-            }
-
-            // somehow max here
-
-            if cumulative_velocity.0.y > node_velocity.0.y {
-                // could have x velocity from prior propagation
-                node_velocity.0.x += cumulative_velocity.0.x;
-
-                node_velocity.0.y = cumulative_velocity.0.y;
-            }
-            // dbg!(node_velocity.0);
+            node_velocity.0 += cumulative_velocity;
+            cumulative_velocity = node_velocity.0;
         }
     }
 }

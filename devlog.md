@@ -1,3 +1,22 @@
+The idea of intrinsic velocity is to enable the movement that each component contributes to bubble up / be distinguished. The current velocity propagation mechanism is brittle and overly complex.
+
+To wit: intrinsic velocity should be applied directly to self?
+
+initialize velocity system: 
+
+if intrinsic exists, use it
+if not, ???
+0 is a bad default value, so is inf, so is gravity
+Velocity as Option?
+
+
+x propagation only propagates -> doesn't have to worry about steps
+
+y propagation only propagates -> doesn't have to care about sequence of sums
+
+OK this is slightly more complicated b/c we don't want to revisit nodes > 1 time, but it mostly works !
+
+
 ## TODO:
 ---
 - more robust collision detection
