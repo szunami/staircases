@@ -6,8 +6,8 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
-        .add_startup_system(setup.system())
-        // .add_startup_system(setup2.system())
+        // .add_startup_system(setup.system())
+        .add_startup_system(setup2.system())
         // .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
@@ -356,6 +356,7 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
         transform.translation.y += velocity.0.y;
 
         if (velocity.0.x > 0.0) {
+            dbg!(velocity.0);
             dbg!(transform.translation);
         }
     }
@@ -442,6 +443,8 @@ fn propagate_velocity_horizontally(
     let mut left_nonbases: HashSet<Entity> = HashSet::new();
 
     for (left_entity, left_transform, left_box) in query.iter() {
+        let mut beside_anything = false;
+
         for (right_entity, right_transform, right_box) in query.iter() {
             if is_beside(left_transform, left_box, right_transform, right_box) {
                 dbg!("beside!");
@@ -450,7 +453,12 @@ fn propagate_velocity_horizontally(
                 current_lefts.insert(right_entity);
                 left_bases.insert(left_entity);
                 left_nonbases.insert(right_entity);
+                beside_anything = true;
             }
+        }
+
+        if !beside_anything {
+            left_bases.insert(left_entity);
         }
     }
 
@@ -472,9 +480,6 @@ fn propagate_velocity_horizontally(
 
             let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
             node_velocity.0.x = max_velocity_so_far;
-
-            // dbg!(node_velocity.0);
-
         }
 
 
@@ -559,7 +564,6 @@ fn propagate_velocity_vertically(
             // add in intrinsic velocity here
 
             if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
-                cumulative_velocity.0.x += intrinsic_velocity.0.x;
                 cumulative_velocity.0.y += intrinsic_velocity.0.y;
             }
 
