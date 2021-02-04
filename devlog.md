@@ -26,6 +26,8 @@ OK this is slightly more complicated b/c we don't want to revisit nodes > 1 time
     - whoever was "already there"?
 - level editing
 - "Box" type
+- Orientation
+- direction
 
 ## BUGS:
 ---

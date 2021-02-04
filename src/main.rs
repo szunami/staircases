@@ -72,47 +72,47 @@ fn setup(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-    {
-        let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+    // {
+    //     let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+    //     let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
-        let escalator = commands
-            .spawn(SpriteSheetBundle {
-                sprite: TextureAtlasSprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                    ..TextureAtlasSprite::default()
-                },
+    //     let escalator = commands
+    //         .spawn(SpriteSheetBundle {
+    //             sprite: TextureAtlasSprite {
+    //                 color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+    //                 ..TextureAtlasSprite::default()
+    //             },
 
-                visible: Visible {
-                    is_visible: true,
-                    is_transparent: true,
-                },
-                texture_atlas: walk_handle.clone_weak(),
-                transform: escalator_transform,
-                ..Default::default()
-            })
-            .with(Escalator {})
-            .with(Velocity(Vec2::zero()))
-            .with(escalator_box.clone())
-            .current_entity()
-            .expect("Parent");
+    //             visible: Visible {
+    //                 is_visible: true,
+    //                 is_transparent: true,
+    //             },
+    //             texture_atlas: walk_handle.clone_weak(),
+    //             transform: escalator_transform,
+    //             ..Default::default()
+    //         })
+    //         .with(Escalator {})
+    //         .with(Velocity(Vec2::zero()))
+    //         .with(escalator_box.clone())
+    //         .current_entity()
+    //         .expect("Parent");
 
-        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                    transform: step_transform,
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(step_box.clone())
-                .with(Step { arm, escalator })
-                .with(Velocity(Vec2::zero()))
-                .with(IntrinsicVelocity(Vec2::zero()));
-        }
-    }
+    //     let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+    //     for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+    //         commands
+    //             .spawn(SpriteBundle {
+    //                 material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+    //                 transform: step_transform,
+    //                 sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+    //                 ..Default::default()
+    //             })
+    //             .with(step_box.clone())
+    //             .with(Step { arm, escalator })
+    //             .with(Velocity(Vec2::zero()))
+    //             .with(IntrinsicVelocity(Vec2::zero()));
+    //     }
+    // }
 
     {
         let ground_box = Vec2::new(400.0, 50.0);
@@ -142,16 +142,16 @@ fn setup(
             .with(Velocity(Vec2::zero()));
     }
 
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()));
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
 
     // commands
     //     .spawn(SpriteBundle {
@@ -416,7 +416,7 @@ fn propagate_velocity_horizontally(
 
         // going left to right
         for path in paths {
-            let mut max_velocity_so_far: Option<f32> = None;
+            let mut max_velocity_so_far = 0.0;
 
             for entity in path.iter() {
                 // transfer positive x momentum only
@@ -424,18 +424,9 @@ fn propagate_velocity_horizontally(
 
                 let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
 
-                match max_velocity_so_far {
-                    Some(x_velocity) => {
-                        if node_velocity.0.x >= 0.0 {
-                            node_velocity.0.x = node_velocity.0.x.max(x_velocity);
-                            max_velocity_so_far = Some(node_velocity.0.x);
-                        }
-                    }
-                    None => {
-                        if node_velocity.0.x > 0.0 {
-                            max_velocity_so_far = Some(node_velocity.0.x);
-                        }
-                    }
+                if node_velocity.0.x >= 0.0 {
+                    node_velocity.0.x = node_velocity.0.x.max(max_velocity_so_far);
+                    max_velocity_so_far = node_velocity.0.x;
                 }
             }
         }
@@ -476,23 +467,16 @@ fn propagate_velocity_horizontally(
 
         // going right to left
         for path in paths {
+            let mut min_velocity_so_far = 0.0;
+
             for entity in path.iter() {
                 // transfer negative x momentum only
                 // don't want to swallow positive velocity (?)
-                let mut min_velocity_so_far: Option<f32> = None;
                 let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
 
-                match min_velocity_so_far {
-                    Some(x_velocity) => {
-                        if node_velocity.0.x <= 0.0 {
-                            node_velocity.0.x = node_velocity.0.x.min(x_velocity);
-                        }
-                    }
-                    None => {
-                        if node_velocity.0.x < 0.0 {
-                            min_velocity_so_far = Some(node_velocity.0.x);
-                        }
-                    }
+                if node_velocity.0.x <= 0.0 {
+                    node_velocity.0.x = node_velocity.0.x.min(min_velocity_so_far);
+                    min_velocity_so_far = node_velocity.0.x;
                 }
             }
         }
