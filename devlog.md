@@ -19,11 +19,11 @@ OK this is slightly more complicated b/c we don't want to revisit nodes > 1 time
 
 ## TODO:
 ---
+- handle ground in horizontal stacks (somehow?)
 - more robust collision detection
   - y colision detection / pushing (+ propagation)
   - perhaps implies some sort of prioritization?
     - whoever was "already there"?
-- horizontal stacks
 - level editing
 
 ## BUGS:
@@ -31,12 +31,16 @@ OK this is slightly more complicated b/c we don't want to revisit nodes > 1 time
 - prefer existing atop? current behavior is jittery
 - issue: player double counts horizontal velocity. fix this
 
+## 20210204
+
+
 
 ## 20210203
 ---
 - player
   - interaction -> intrinsic velocity
 - fixed: player can tank grounded platform; add grounding check to intermediates?
+- horizontal stacks
 
 
 ## 20210202

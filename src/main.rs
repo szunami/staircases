@@ -7,7 +7,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
-        // .add_system(framerate.system())
+        .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
         .add_system(reset_ungrounded_velocity.system())
@@ -153,39 +153,39 @@ fn setup(
         .with(BoundingBox(Vec2::new(50.0, 50.0)))
         .with(Velocity(Vec2::zero()));
 
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()));
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
 
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(00.0, 250.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()));
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+            transform: Transform::from_translation(Vec3::new(00.0, 250.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()));
 
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(00.0, 350.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Player {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(Vec2::zero()))
-    //     .with(IntrinsicVelocity(Vec2::zero()));
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            transform: Transform::from_translation(Vec3::new(00.0, 350.0, 1.0)),
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(Player {})
+        .with(BoundingBox(Vec2::new(50.0, 50.0)))
+        .with(Velocity(Vec2::zero()))
+        .with(IntrinsicVelocity(Vec2::zero()));
 }
 
 fn steps(
@@ -290,8 +290,6 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += velocity.0.x;
         transform.translation.y += velocity.0.y;
-
-        dbg!(velocity.0);
     }
 }
 
@@ -575,7 +573,6 @@ fn propagate_velocity_vertically(
         let mut cumulative_velocity = Vec2::new(0.0, -1.0);
 
         for entity in path.iter() {
-
             if let Ok(_) = grounds.get(*entity) {
                 cumulative_velocity = Vec2::zero();
             };
@@ -594,7 +591,9 @@ fn propagate_velocity_vertically(
     }
 
     for (entity, velocity) in already_visited.iter() {
-        velocities.set(*entity, Velocity(*velocity));
+        if let Err(e) = velocities.set(*entity, Velocity(*velocity)) {
+            panic!("Error setting velocity: {:?}", e);
+        }
     }
 }
 
