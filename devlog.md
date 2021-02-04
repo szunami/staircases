@@ -25,11 +25,14 @@ OK this is slightly more complicated b/c we don't want to revisit nodes > 1 time
   - perhaps implies some sort of prioritization?
     - whoever was "already there"?
 - level editing
+- "Box" type
 
 ## BUGS:
 ---
 - prefer existing atop? current behavior is jittery
-- issue: player double counts horizontal velocity. fix this
+- weird distinction between no intrinsic velocity vs zero intrinsic velocity?
+  - step pushes crate off, doesn't push player off
+  - this is just x collision system
 
 ## 20210204
 

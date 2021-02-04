@@ -10,12 +10,12 @@ fn main() {
         .add_system(framerate.system())
         .add_system(step_intrinsic_velocity.system())
         .add_system(player_intrinsic_velocity.system())
-        .add_system(reset_ungrounded_velocity.system())
+        .add_system(initialize_velocity.system())
         .add_system(propagate_velocity_horizontally.system())
         .add_system(propagate_velocity_vertically.system())
         .add_system(update_position.system())
         .add_system(update_step_arm.system())
-        .add_system(x_collision_correction.system())
+        // .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
@@ -142,27 +142,27 @@ fn setup(
             .with(Velocity(Vec2::zero()));
     }
 
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()));
+    // commands
+    //     .spawn(SpriteBundle {
+    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //         transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
+    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+    //         ..Default::default()
+    //     })
+    //     .with(Crate {})
+    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
+    //     .with(Velocity(Vec2::zero()));
 
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()));
+    // commands
+    //     .spawn(SpriteBundle {
+    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //         transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
+    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+    //         ..Default::default()
+    //     })
+    //     .with(Crate {})
+    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
+    //     .with(Velocity(Vec2::zero()));
 
     commands
         .spawn(SpriteBundle {
@@ -173,7 +173,8 @@ fn setup(
         })
         .with(Crate {})
         .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(Vec2::zero()));
+        .with(Velocity(Vec2::zero()))
+        .with(IntrinsicVelocity(Vec2::zero()));
 
     commands
         .spawn(SpriteBundle {
@@ -353,7 +354,7 @@ fn is_atop(
             || (below_left <= atop_left && atop_left < below_right))
 }
 
-fn reset_ungrounded_velocity(
+fn initialize_velocity(
     mut ungrounded: Query<(Entity, &mut Velocity), Without<Ground>>,
     intrinsic_velocities: Query<&IntrinsicVelocity>,
 ) {
@@ -372,6 +373,8 @@ fn reset_ungrounded_velocity(
 // you can push an escalator from the left, not the right
 // pushing a step has to push the escalator
 // pushable, non-pushable,
+
+// do we just need to handle steps outside of this?
 
 fn propagate_velocity_horizontally(
     left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Ground>)>,
@@ -416,26 +419,23 @@ fn propagate_velocity_horizontally(
             let mut max_velocity_so_far: Option<f32> = None;
 
             for entity in path.iter() {
-                // apply x velocity to self
                 // transfer positive x momentum only
-                if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
-                    match max_velocity_so_far {
-                        Some(velocity) => {
-                            max_velocity_so_far = Some(velocity.max(intrinsic_velocity.0.x));
-                        }
-                        None => {
-                            // only propagate if its actually moving right (?)
-                            if intrinsic_velocity.0.x > 0.0 {
-                                max_velocity_so_far = Some(intrinsic_velocity.0.x);
-                            }
-                        }
-                    }
-                }
+                // don't want to swallow negative velocity (?)
 
                 let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
 
-                if let Some(velocity) = max_velocity_so_far {
-                    node_velocity.0.x = velocity;
+                match max_velocity_so_far {
+                    Some(x_velocity) => {
+                        if node_velocity.0.x >= 0.0 {
+                            node_velocity.0.x = node_velocity.0.x.max(x_velocity);
+                            max_velocity_so_far = Some(node_velocity.0.x);
+                        }
+                    }
+                    None => {
+                        if node_velocity.0.x > 0.0 {
+                            max_velocity_so_far = Some(node_velocity.0.x);
+                        }
+                    }
                 }
             }
         }
@@ -476,29 +476,23 @@ fn propagate_velocity_horizontally(
 
         // going right to left
         for path in paths {
-            let mut min_velocity_so_far: Option<f32> = None;
-
             for entity in path.iter() {
-                // apply x velocity to self
-                // transfer positive x momentum only
-                if let Ok(intrinsic_velocity) = intrinsic_velocities.get(*entity) {
-                    match min_velocity_so_far {
-                        Some(velocity) => {
-                            min_velocity_so_far = Some(velocity.min(intrinsic_velocity.0.x));
-                        }
-                        None => {
-                            // only propagate if actually moving left
-                            if intrinsic_velocity.0.x < 0.0 {
-                                min_velocity_so_far = Some(intrinsic_velocity.0.x);
-                            }
-                        }
-                    }
-                }
-
+                // transfer negative x momentum only
+                // don't want to swallow positive velocity (?)
+                let mut min_velocity_so_far: Option<f32> = None;
                 let mut node_velocity = velocities.get_mut(*entity).expect("velocity");
 
-                if let Some(velocity) = min_velocity_so_far {
-                    node_velocity.0.x = velocity;
+                match min_velocity_so_far {
+                    Some(x_velocity) => {
+                        if node_velocity.0.x <= 0.0 {
+                            node_velocity.0.x = node_velocity.0.x.min(x_velocity);
+                        }
+                    }
+                    None => {
+                        if node_velocity.0.x < 0.0 {
+                            min_velocity_so_far = Some(node_velocity.0.x);
+                        }
+                    }
                 }
             }
         }
