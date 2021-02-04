@@ -393,8 +393,7 @@ fn propagate_velocity_horizontally(
 
             for (right_entity, right_transform, right_box) in right_query.iter() {
                 if is_beside(left_transform, left_box, right_transform, right_box) {
-                    dbg!("beside!");
-                    let current_lefts = left_edges.entry(left_entity).or_insert(HashSet::new());
+                    let current_lefts = left_edges.entry(left_entity).or_insert_with(HashSet::new);
 
                     current_lefts.insert(right_entity);
                     left_bases.insert(left_entity);
@@ -456,7 +455,8 @@ fn propagate_velocity_horizontally(
             for (left_entity, left_transform, left_box) in left_query.iter() {
                 if is_beside(left_transform, left_box, right_transform, right_box) {
                     dbg!("beside!");
-                    let current_rights = right_edges.entry(right_entity).or_insert(HashSet::new());
+                    let current_rights =
+                        right_edges.entry(right_entity).or_insert_with(HashSet::new);
 
                     current_rights.insert(left_entity);
                     right_bases.insert(right_entity);
@@ -541,7 +541,7 @@ fn propagate_velocity_vertically(
     let mut atops: HashSet<Entity> = HashSet::default();
 
     for (step, step_entity) in steps.iter() {
-        let current_atops = edges.entry(step.escalator).or_insert(HashSet::new());
+        let current_atops = edges.entry(step.escalator).or_insert_with(HashSet::new);
         current_atops.insert(step_entity);
         atops.insert(step_entity);
         bases.insert(step.escalator);
@@ -552,7 +552,7 @@ fn propagate_velocity_vertically(
         for (below_entity, below_transform, below_box) in bases_query.iter() {
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
                 is_atop_anything = true;
-                let current_atops = edges.entry(below_entity).or_insert(HashSet::new());
+                let current_atops = edges.entry(below_entity).or_insert_with(HashSet::new);
 
                 current_atops.insert(atop_entity);
                 atops.insert(atop_entity);
@@ -573,7 +573,7 @@ fn propagate_velocity_vertically(
         let mut cumulative_velocity = Vec2::new(0.0, -1.0);
 
         for entity in path.iter() {
-            if let Ok(_) = grounds.get(*entity) {
+            if grounds.get(*entity).is_ok() {
                 cumulative_velocity = Vec2::zero();
             };
 
@@ -625,9 +625,9 @@ fn path_helper(current: Entity, edges: &HashMap<Entity, HashSet<Entity>>) -> Vec
                 }
             }
 
-            return result;
+            result
         }
-        None => return vec![vec![current]],
+        None => vec![vec![current]],
     }
 }
 
