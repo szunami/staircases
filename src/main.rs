@@ -14,13 +14,14 @@ fn main() {
         // build edge graph
         .add_system(build_adjacency_graph.system())
         // assign step IV
+        .add_system(step_intrinsic_velocity.system())
+
         // assign player IV
         // assign falling IV
         // propagation
         // reset velocity
         .add_system(reset_velocity.system())
         // for each IV, in order of ascending y, propagate
-        // .add_system(step_intrinsic_velocity.system())
         // .add_system(player_intrinsic_velocity.system())
         // .add_system(initialize_velocity.system())
         // .add_system(propagate_velocity_horizontally.system())
