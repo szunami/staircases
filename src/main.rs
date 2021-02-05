@@ -71,7 +71,6 @@ struct AdjacencyGraph {
     lefts: HashMap<Entity, HashSet<Entity>>,
     rights: HashMap<Entity, HashSet<Entity>>,
     tops: HashMap<Entity, HashSet<Entity>>,
-    bottoms: HashMap<Entity, HashSet<Entity>>,
 }
 
 impl Default for AdjacencyGraph {
@@ -80,7 +79,6 @@ impl Default for AdjacencyGraph {
             lefts: HashMap::new(),
             rights: HashMap::new(),
             tops: HashMap::new(),
-            bottoms: HashMap::new(),
         }
     }
 }
@@ -893,12 +891,11 @@ fn build_adjacency_graph(
 
     left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
     right_query: Query<(Entity, &Transform, &BoundingBox), (Without<Step>)>,
-    //     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
-    //     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
+    atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
+    bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
+    steps: Query<(&Step, Entity)>,
 ) {
-
     let mut lefts = HashMap::new();
-
     for (left_entity, left_transform, left_box) in left_query.iter() {
         for (right_entity, right_transform, right_box) in right_query.iter() {
             if is_beside(left_transform, left_box, right_transform, right_box) {
@@ -908,8 +905,35 @@ fn build_adjacency_graph(
         }
     }
 
-    *adjacency_graph = AdjacencyGraph{
+    let mut rights = HashMap::new();
+    for (right_entity, right_transform, right_box) in right_query.iter() {
+        for (left_entity, left_transform, left_box) in left_query.iter() {
+            if is_beside(left_transform, left_box, right_transform, right_box) {
+                let current_rights = rights.entry(right_entity).or_insert_with(HashSet::new);
+                current_rights.insert(left_entity);
+            }
+        }
+    }
+
+    let mut tops = HashMap::new();
+
+    for (atop_entity, atop_transform, atop_box) in atop_query.iter() {
+        for (below_entity, below_transform, below_box) in bases_query.iter() {
+            if is_atop(atop_transform, atop_box, below_transform, below_box) {
+                let current_atops = tops.entry(below_entity).or_insert_with(HashSet::new);
+                current_atops.insert(atop_entity);
+            }
+        }
+    }
+
+    for (step, step_entity) in steps.iter() {
+        let current_atops = tops.entry(step.escalator).or_insert_with(HashSet::new);
+        current_atops.insert(step_entity);
+    }
+
+    *adjacency_graph = AdjacencyGraph {
         lefts,
-        ..AdjacencyGraph::default()
+        rights,
+        tops,
     };
 }
