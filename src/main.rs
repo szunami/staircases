@@ -17,12 +17,13 @@ fn main() {
         .add_system(step_intrinsic_velocity.system())
 
         // assign player IV
+        .add_system(player_intrinsic_velocity.system())
+
         // assign falling IV
         // propagation
         // reset velocity
         .add_system(reset_velocity.system())
         // for each IV, in order of ascending y, propagate
-        // .add_system(player_intrinsic_velocity.system())
         // .add_system(initialize_velocity.system())
         // .add_system(propagate_velocity_horizontally.system())
         // .add_system(propagate_velocity_vertically.system())
@@ -72,6 +73,7 @@ struct AdjacencyGraph {
     lefts: HashMap<Entity, HashSet<Entity>>,
     rights: HashMap<Entity, HashSet<Entity>>,
     tops: HashMap<Entity, HashSet<Entity>>,
+    bottoms: HashMap<Entity, HashSet<Entity>>,
 }
 
 impl Default for AdjacencyGraph {
@@ -80,6 +82,7 @@ impl Default for AdjacencyGraph {
             lefts: HashMap::new(),
             rights: HashMap::new(),
             tops: HashMap::new(),
+            bottoms: HashMap::new(),
         }
     }
 }
@@ -454,9 +457,10 @@ fn steps(
 
 fn player_intrinsic_velocity(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&Player, &mut IntrinsicVelocity)>,
+    adjacency_graph: Res<AdjacencyGraph>,
+    mut query: Query<(&Player, Entity, &mut IntrinsicVelocity)>,
 ) {
-    for (_player, mut velocity) in query.iter_mut() {
+    for (_player, entity, mut velocity) in query.iter_mut() {
         let mut x_velocity = 0.0;
         if keyboard_input.pressed(KeyCode::A) {
             x_velocity += -1.0;
@@ -464,8 +468,14 @@ fn player_intrinsic_velocity(
         if keyboard_input.pressed(KeyCode::D) {
             x_velocity += 1.0;
         }
+
+        let y_velocity = match adjacency_graph.bottoms.get(&entity) {
+            Some(_) => { 0.0 }
+            None => { -1.0 }
+        };
+
         // TODO: assign falling
-        *velocity = IntrinsicVelocity(Some(Vec2::new(x_velocity, 0.0)));
+        *velocity = IntrinsicVelocity(Some(Vec2::new(x_velocity, y_velocity)));
     }
 }
 
@@ -896,6 +906,8 @@ fn build_adjacency_graph(
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
 ) {
+
+    // asymmetric for now b/c weirdness w/ elevator hitboxes
     let mut lefts = HashMap::new();
     for (left_entity, left_transform, left_box) in left_query.iter() {
         for (right_entity, right_transform, right_box) in right_query.iter() {
@@ -917,12 +929,16 @@ fn build_adjacency_graph(
     }
 
     let mut tops = HashMap::new();
+    let mut bottoms = HashMap::new();
 
     for (atop_entity, atop_transform, atop_box) in atop_query.iter() {
         for (below_entity, below_transform, below_box) in bases_query.iter() {
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
                 let current_atops = tops.entry(below_entity).or_insert_with(HashSet::new);
                 current_atops.insert(atop_entity);
+
+                let current_bottoms = bottoms.entry(atop_entity).or_insert_with(HashSet::new);
+                current_bottoms.insert(below_entity);
             }
         }
     }
@@ -936,5 +952,6 @@ fn build_adjacency_graph(
         lefts,
         rights,
         tops,
+        bottoms,
     };
 }
