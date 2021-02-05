@@ -202,7 +202,7 @@ fn setup2(
             commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(-250.0, 50.0, 1.0)),
                 sprite: Sprite::new(crate_box),
                 ..Default::default()
             })
