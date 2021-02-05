@@ -6,41 +6,31 @@ fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
-
         .add_resource(AdjacencyGraph::default())
-
         .add_startup_system(setup2.system())
         .add_system(framerate.system())
-
         // reset IV
         .add_system(reset_intrinsic_velocity.system())
-
         // build edge graph
-        // .add_system(build_edge_graph)
+        .add_system(build_adjacency_graph.system())
         // assign step IV
         // assign player IV
         // assign falling IV
-
         // propagation
         // reset velocity
         .add_system(reset_velocity.system())
         // for each IV, in order of ascending y, propagate
-
-
         // .add_system(step_intrinsic_velocity.system())
         // .add_system(player_intrinsic_velocity.system())
         // .add_system(initialize_velocity.system())
         // .add_system(propagate_velocity_horizontally.system())
         // .add_system(propagate_velocity_vertically.system())
-
-
-        .add_system(update_position.system())
+        // .add_system(update_position.system())
         .add_system(update_step_arm.system())
         // .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
-
 
 fn framerate(diagnostics: Res<Diagnostics>) {
     if let Some(fps) = diagnostics.get(bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS) {
@@ -103,7 +93,6 @@ fn setup2(
 
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-
     let walk_handle = asset_server.load("textures/base.png");
     let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
 
@@ -125,121 +114,121 @@ fn setup2(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-        {
-            let ground_box = Vec2::new(400.0, 50.0);
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                    sprite: Sprite::new(ground_box),
-                    ..Default::default()
-                })
-                .with(Ground {})
-                .with(BoundingBox(ground_box))
-                .with(Velocity(None));
-        }
+    {
+        let ground_box = Vec2::new(400.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
 
-        {
-            let ground_box = Vec2::new(400.0, 50.0);
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(0.0, -150.0, 1.0)),
-                    sprite: Sprite::new(ground_box),
-                    ..Default::default()
-                })
-                .with(Ground {})
-                .with(BoundingBox(ground_box))
-                .with(Velocity(None));
-        }
-        {
-            let ground_box = Vec2::new(400.0, 50.0);
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(-50.0, -200.0, 1.0)),
-                    sprite: Sprite::new(ground_box),
-                    ..Default::default()
-                })
-                .with(Ground {})
-                .with(BoundingBox(ground_box))
-                .with(Velocity(None));
-        }
+    {
+        let ground_box = Vec2::new(400.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, -150.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
+    {
+        let ground_box = Vec2::new(400.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-50.0, -200.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
 
-        {
-            let ground_box = Vec2::new(200.0, 200.0);
+    {
+        let ground_box = Vec2::new(200.0, 200.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-500.0, -75.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
+
+    {
+        let ground_box = Vec2::new(50.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-500.0, 100.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
+
+    {
+        let escalator_transform = Transform::from_translation(Vec3::new(-300.0, -75.0, 0.0));
+
+        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+
+        let escalator = commands
+            .spawn(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                    ..TextureAtlasSprite::default()
+                },
+
+                visible: Visible {
+                    is_visible: true,
+                    is_transparent: true,
+                },
+                texture_atlas: walk_handle.clone_weak(),
+                transform: escalator_transform,
+                ..Default::default()
+            })
+            .with(Escalator {})
+            .with(Velocity(None))
+            .with(escalator_box.clone())
+            .current_entity()
+            .expect("Parent");
+
+        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
             commands
                 .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(-500.0, -75.0, 1.0)),
-                    sprite: Sprite::new(ground_box),
+                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                    transform: step_transform,
+                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
                     ..Default::default()
                 })
-                .with(Ground {})
-                .with(BoundingBox(ground_box))
-                .with(Velocity(None));
-        }
-
-        {
-            let ground_box = Vec2::new(50.0, 50.0);
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                    transform: Transform::from_translation(Vec3::new(-500.0, 100.0, 1.0)),
-                    sprite: Sprite::new(ground_box),
-                    ..Default::default()
-                })
-                .with(Ground {})
-                .with(BoundingBox(ground_box))
-                .with(Velocity(None));
-        }
-
-        {
-            let escalator_transform = Transform::from_translation(Vec3::new(-300.0, -75.0, 0.0));
-    
-            let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
-    
-            let escalator = commands
-                .spawn(SpriteSheetBundle {
-                    sprite: TextureAtlasSprite {
-                        color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                        ..TextureAtlasSprite::default()
-                    },
-    
-                    visible: Visible {
-                        is_visible: true,
-                        is_transparent: true,
-                    },
-                    texture_atlas: walk_handle.clone_weak(),
-                    transform: escalator_transform,
-                    ..Default::default()
-                })
-                .with(Escalator {})
+                .with(step_box.clone())
+                .with(Step { arm, escalator })
                 .with(Velocity(None))
-                .with(escalator_box.clone())
-                .current_entity()
-                .expect("Parent");
-    
-            let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-            for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
-                commands
-                    .spawn(SpriteBundle {
-                        material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                        transform: step_transform,
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(step_box.clone())
-                    .with(Step { arm, escalator })
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
-            }
+                .with(IntrinsicVelocity(None));
         }
+    }
 
-        {
-            let crate_box = Vec2::new(200.0, 50.0);
+    {
+        let crate_box = Vec2::new(200.0, 50.0);
 
-            commands
+        commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
                 transform: Transform::from_translation(Vec3::new(-250.0, 50.0, 1.0)),
@@ -249,9 +238,7 @@ fn setup2(
             .with(Crate {})
             .with(BoundingBox(crate_box))
             .with(Velocity(None));
-        }
-
-
+    }
 }
 
 fn setup(
@@ -471,7 +458,6 @@ fn player_intrinsic_velocity(
     mut query: Query<(&Player, &mut IntrinsicVelocity)>,
 ) {
     for (_player, mut velocity) in query.iter_mut() {
-
         let mut x_velocity = 0.0;
         if keyboard_input.pressed(KeyCode::A) {
             x_velocity += -1.0;
@@ -481,7 +467,6 @@ fn player_intrinsic_velocity(
         }
         // TODO: assign falling
         *velocity = IntrinsicVelocity(Some(Vec2::new(x_velocity, 0.0)));
-
     }
 }
 
@@ -891,19 +876,40 @@ fn x_collision_correction(
     }
 }
 
-fn reset_intrinsic_velocity(
-    mut query: Query<&mut IntrinsicVelocity>
-
-) {
+fn reset_intrinsic_velocity(mut query: Query<&mut IntrinsicVelocity>) {
     for mut intrinsic_velocity in query.iter_mut() {
         *intrinsic_velocity = IntrinsicVelocity(None);
     }
 }
 
-fn reset_velocity(
-    mut query: Query<&mut Velocity>
-) {
+fn reset_velocity(mut query: Query<&mut Velocity>) {
     for mut velocity in query.iter_mut() {
         *velocity = Velocity(None);
     }
+}
+
+fn build_adjacency_graph(
+    mut adjacency_graph: ResMut<AdjacencyGraph>,
+
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
+    right_query: Query<(Entity, &Transform, &BoundingBox), (Without<Step>)>,
+    //     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
+    //     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
+) {
+
+    let mut lefts = HashMap::new();
+
+    for (left_entity, left_transform, left_box) in left_query.iter() {
+        for (right_entity, right_transform, right_box) in right_query.iter() {
+            if is_beside(left_transform, left_box, right_transform, right_box) {
+                let current_lefts = lefts.entry(left_entity).or_insert_with(HashSet::new);
+                current_lefts.insert(right_entity);
+            }
+        }
+    }
+
+    *adjacency_graph = AdjacencyGraph{
+        lefts,
+        ..AdjacencyGraph::default()
+    };
 }
