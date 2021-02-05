@@ -20,6 +20,7 @@ fn main() {
         .add_system(player_intrinsic_velocity.system())
 
         // assign falling IV
+        .add_system(falling_intrinsic_velocity.system())
         // propagation
         // reset velocity
         .add_system(reset_velocity.system())
@@ -954,4 +955,17 @@ fn build_adjacency_graph(
         tops,
         bottoms,
     };
+}
+
+fn falling_intrinsic_velocity(
+    adjacency_graph: Res<AdjacencyGraph>,
+    
+    mut query: Query<(Entity, &mut IntrinsicVelocity), (Without<Player>, Without<Ground>)>
+) {
+
+    for (entity, mut intrinsic_velocity) in query.iter_mut() {
+        if !adjacency_graph.bottoms.get(&entity).is_none() {
+            *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+        }
+    }
 }
