@@ -4,7 +4,7 @@
 ## TODO:
 ---
 
-
+- rewrite propagation engine
 
 - non-square bounds. Set of bounds?
   - this enables more robust horizontal pushing of escalators
