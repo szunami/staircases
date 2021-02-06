@@ -22,13 +22,20 @@ fn main() {
         // assign falling IV
         .add_system(falling_intrinsic_velocity.system())
         // propagation
+
+        .add_system(velocity_propagation.system())
+
+        
         // reset velocity
         .add_system(reset_velocity.system())
         // for each IV, in order of ascending y, propagate
+
+
+
         // .add_system(initialize_velocity.system())
         // .add_system(propagate_velocity_horizontally.system())
         // .add_system(propagate_velocity_vertically.system())
-        // .add_system(update_position.system())
+        .add_system(update_position.system())
         .add_system(update_step_arm.system())
         // .add_system(x_collision_correction.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
@@ -499,11 +506,18 @@ fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
     }
 }
 
-fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
+fn update_position(mut query: Query<(&IntrinsicVelocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
-        let velocity = maybe_velocity.0.expect("velocity should be set!");
-        transform.translation.x += velocity.x;
-        transform.translation.y += velocity.y;
+        match maybe_velocity.0 {
+            Some(velocity) => {
+                transform.translation.x += velocity.x;
+                transform.translation.y += velocity.y;
+            }
+            None => {
+                dbg!("Shouldn't happen in the future!");
+            }
+        }
+
     }
 }
 
@@ -968,4 +982,29 @@ fn falling_intrinsic_velocity(
             *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
         }
     }
+}
+
+fn velocity_propagation(
+    order_query: Query<(Entity, &Transform, &BoundingBox, &IntrinsicVelocity)>
+
+) {
+    // order intrinsic velocities by y top
+
+    let mut intrinsic_velocity_sources = vec![];
+
+    for (entity, transform, bounding_box, intrinsic_velocity) in order_query.iter() {
+
+        if let Some(_) = intrinsic_velocity.0 {
+            let top = transform.translation.y + bounding_box.0.y / 2.0;
+
+            intrinsic_velocity_sources.push((entity, top));
+        }
+    }
+
+    intrinsic_velocity_sources.sort_by(|a, b| {
+        a.1.partial_cmp(&b.1).expect("sort velocity")
+    })
+
+    
+
 }
