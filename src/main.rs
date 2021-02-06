@@ -1082,13 +1082,59 @@ fn propagate_velocity(
             }
         }
     }
+    if propagation_velocity.x > 0.0 {
+        let mut any_ground = false;
+        let x_velocity = Vec2::new(propagation_velocity.x, 0.0);
+
+        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+            for right_entity in right_entities {
+                any_ground = any_ground
+                    | propagate_velocity(
+                        *right_entity,
+                        x_velocity,
+                        adjacency_graph,
+                        grounds,
+                        velocities,
+                    )
+            }
+
+            if any_ground {
+                for right_entity in right_entities {
+                    propagate_velocity(
+                        *right_entity,
+                        Vec2::zero(),
+                        adjacency_graph,
+                        grounds,
+                        velocities,
+                    );
+                }
+            }
+        }
+
+        if !any_ground {
+            let mut node_velocity = velocities.get_mut(entity).expect("velocity");
+
+            match node_velocity.0 {
+                Some(prior_velocity) => {
+                    // maybe x should be additive here?
+                    let new_velocity =
+                        Vec2::new(prior_velocity.x.max(x_velocity.x), prior_velocity.y);
+                    node_velocity.0 = Some(new_velocity);
+                }
+                None => {
+                    dbg!("No existing velocity");
+                    node_velocity.0 = Some(x_velocity);
+                }
+            }
+        }
+    }
 
     // handle y
     {
         let mut any_ground = false;
 
         if propagation_velocity.y > 0.0 {
-            if let Some(tops) = adjacency_graph.tops.get(&entity)  {
+            if let Some(tops) = adjacency_graph.tops.get(&entity) {
                 for top_entity in tops {
                     any_ground = any_ground
                         | propagate_velocity(
@@ -1099,7 +1145,7 @@ fn propagate_velocity(
                             velocities,
                         );
                 }
-    
+
                 if any_ground {
                     for top_entity in tops {
                         propagate_velocity(
@@ -1114,20 +1160,17 @@ fn propagate_velocity(
             }
         }
 
-
         let mut node_velocity = velocities.get_mut(entity).expect("velocity");
 
         if any_ground {
             node_velocity.0.unwrap().y = 0.0;
         } else {
-
             if propagation_velocity.y == 0.0 {
                 return false;
             }
 
             match node_velocity.0 {
                 Some(mut old_velocity) => {
-
                     old_velocity.y = propagation_velocity.y;
 
                     *node_velocity = Velocity(Some(old_velocity));
