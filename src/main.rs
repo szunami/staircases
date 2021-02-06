@@ -15,23 +15,15 @@ fn main() {
         .add_system(build_adjacency_graph.system())
         // assign step IV
         .add_system(step_intrinsic_velocity.system())
-
         // assign player IV
         .add_system(player_intrinsic_velocity.system())
-
         // assign falling IV
         .add_system(falling_intrinsic_velocity.system())
         // propagation
-
         .add_system(velocity_propagation.system())
-
-        
         // reset velocity
         .add_system(reset_velocity.system())
         // for each IV, in order of ascending y, propagate
-
-
-
         // .add_system(initialize_velocity.system())
         // .add_system(propagate_velocity_horizontally.system())
         // .add_system(propagate_velocity_vertically.system())
@@ -478,8 +470,8 @@ fn player_intrinsic_velocity(
         }
 
         let y_velocity = match adjacency_graph.bottoms.get(&entity) {
-            Some(_) => { 0.0 }
-            None => { -1.0 }
+            Some(_) => 0.0,
+            None => -1.0,
         };
 
         // TODO: assign falling
@@ -517,7 +509,6 @@ fn update_position(mut query: Query<(&IntrinsicVelocity, &mut Transform)>) {
                 dbg!("Shouldn't happen in the future!");
             }
         }
-
     }
 }
 
@@ -921,7 +912,6 @@ fn build_adjacency_graph(
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
 ) {
-
     // asymmetric for now b/c weirdness w/ elevator hitboxes
     let mut lefts = HashMap::new();
     for (left_entity, left_transform, left_box) in left_query.iter() {
@@ -973,10 +963,9 @@ fn build_adjacency_graph(
 
 fn falling_intrinsic_velocity(
     adjacency_graph: Res<AdjacencyGraph>,
-    
-    mut query: Query<(Entity, &mut IntrinsicVelocity), (Without<Player>, Without<Ground>)>
-) {
 
+    mut query: Query<(Entity, &mut IntrinsicVelocity), (Without<Player>, Without<Ground>)>,
+) {
     for (entity, mut intrinsic_velocity) in query.iter_mut() {
         if !adjacency_graph.bottoms.get(&entity).is_none() {
             *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
@@ -985,26 +974,23 @@ fn falling_intrinsic_velocity(
 }
 
 fn velocity_propagation(
-    order_query: Query<(Entity, &Transform, &BoundingBox, &IntrinsicVelocity)>
+    adjacency_graph: Res<AdjacencyGraph>,
 
+    order_query: Query<(Entity, &Transform, &BoundingBox, &IntrinsicVelocity)>,
 ) {
     // order intrinsic velocities by y top
 
     let mut intrinsic_velocity_sources = vec![];
 
     for (entity, transform, bounding_box, intrinsic_velocity) in order_query.iter() {
-
-        if let Some(_) = intrinsic_velocity.0 {
+        if let Some(intrinsic_velocity) = intrinsic_velocity.0 {
             let top = transform.translation.y + bounding_box.0.y / 2.0;
 
-            intrinsic_velocity_sources.push((entity, top));
+            intrinsic_velocity_sources.push((entity, top, intrinsic_velocity));
         }
     }
 
-    intrinsic_velocity_sources.sort_by(|a, b| {
-        a.1.partial_cmp(&b.1).expect("sort velocity")
-    })
+    intrinsic_velocity_sources.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("sort velocity"));
 
-    
-
+    for (entity, top, intrinsic_velocity) in intrinsic_velocity_sources {}
 }
