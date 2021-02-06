@@ -227,20 +227,21 @@ fn setup2(
     //     }
     // }
 
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
+    // {
+    //     let crate_box = Vec2::new(50.0, 50.0);
 
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(Velocity(None));
-    }
+    //     commands
+    //         .spawn(SpriteBundle {
+    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //             transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+    //             sprite: Sprite::new(crate_box),
+    //             ..Default::default()
+    //         })
+    //         .with(Crate {})
+    //         .with(BoundingBox(crate_box))
+    //         .with(IntrinsicVelocity(None))
+    //         .with(Velocity(None));
+    // }
 }
 
 fn setup(
@@ -954,8 +955,8 @@ fn build_adjacency_graph(
     }
 
     *adjacency_graph = AdjacencyGraph {
-        lefts: lefts,
-        rights: rights,
+        lefts,
+        rights,
         tops,
         bottoms,
     };
@@ -967,9 +968,18 @@ fn falling_intrinsic_velocity(
     mut query: Query<(Entity, &mut IntrinsicVelocity), (Without<Player>, Without<Ground>)>,
 ) {
     for (entity, mut intrinsic_velocity) in query.iter_mut() {
-        if !adjacency_graph.bottoms.get(&entity).is_none() {
-            *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+        match adjacency_graph.bottoms.get(&entity) {
+            Some(bottoms) => {
+                if bottoms.is_empty() {
+                    *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+                }
+            }
+            None => {
+                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+            }
         }
+
+        if !adjacency_graph.bottoms.get(&entity).is_none() {}
     }
 }
 
@@ -1007,6 +1017,8 @@ fn velocity_propagation(
     }
 }
 
+// maybe want a "dry run" option
+
 // returns true if propagation down this direction hit a Ground
 // which velocities are additive, and which are not?
 // if y velocity is increasing, ditch old stuff (?)
@@ -1031,9 +1043,6 @@ fn propagate_velocity(
 
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
-                dbg!("propagating left from ", entity);
-
-                dbg!("propagating left to ", left_entity);
                 any_ground = any_ground
                     | propagate_velocity(
                         *left_entity,
@@ -1077,9 +1086,15 @@ fn propagate_velocity(
         if let Some(tops) = adjacency_graph.tops.get(&entity) {
             for top_entity in tops {
                 any_ground = any_ground
-                    | propagate_velocity(*top_entity, velocity, adjacency_graph, grounds, velocities);
+                    | propagate_velocity(
+                        *top_entity,
+                        velocity,
+                        adjacency_graph,
+                        grounds,
+                        velocities,
+                    );
             }
-    
+
             if any_ground {
                 for top_entity in tops {
                     propagate_velocity(
@@ -1098,18 +1113,18 @@ fn propagate_velocity(
         if any_ground {
             node_velocity.0.unwrap().y = 0.0;
         } else {
-
             match node_velocity.0 {
-                Some(_) => {
+                Some(mut old_velocity) => {
+                    old_velocity.y = velocity.y;
+
+                    *node_velocity = Velocity(Some(old_velocity));
+
                     // shit gets real
                 }
-                None => {
-                    node_velocity.0 = Some(Vec2::new(0.0, velocity.y))
-                }
+                None => node_velocity.0 = Some(Vec2::new(0.0, velocity.y)),
             }
         }
     }
-
 
     false
 }
