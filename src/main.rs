@@ -227,21 +227,21 @@ fn setup2(
     //     }
     // }
 
-    // {
-    //     let crate_box = Vec2::new(50.0, 50.0);
+    {
+        let crate_box = Vec2::new(50.0, 50.0);
 
-    //     commands
-    //         .spawn(SpriteBundle {
-    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //             transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-    //             sprite: Sprite::new(crate_box),
-    //             ..Default::default()
-    //         })
-    //         .with(Crate {})
-    //         .with(BoundingBox(crate_box))
-    //         .with(IntrinsicVelocity(None))
-    //         .with(Velocity(None));
-    // }
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
+            .with(Velocity(None));
+    }
 }
 
 fn setup(
@@ -1026,7 +1026,7 @@ fn velocity_propagation(
 
 fn propagate_velocity(
     entity: Entity,
-    velocity: Vec2,
+    propagation_velocity: Vec2,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
     mut velocities: &mut Query<&mut Velocity>,
@@ -1037,9 +1037,9 @@ fn propagate_velocity(
     }
 
     // handle x first
-    if velocity.x < 0.0 {
+    if propagation_velocity.x < 0.0 {
         let mut any_ground = false;
-        let x_velocity = Vec2::new(velocity.x, 0.0);
+        let x_velocity = Vec2::new(propagation_velocity.x, 0.0);
 
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
@@ -1070,10 +1070,13 @@ fn propagate_velocity(
             let mut node_velocity = velocities.get_mut(entity).expect("velocity");
 
             match node_velocity.0 {
-                Some(_) => {
-                    // shit gets real
+                Some(prior_velocity) => {
+                    let new_velocity =
+                        Vec2::new(prior_velocity.x.min(x_velocity.x), prior_velocity.y);
+                    node_velocity.0 = Some(new_velocity);
                 }
                 None => {
+                    dbg!("No existing velocity");
                     node_velocity.0 = Some(x_velocity);
                 }
             }
@@ -1083,48 +1086,58 @@ fn propagate_velocity(
     // handle y
     {
         let mut any_ground = false;
-        if let Some(tops) = adjacency_graph.tops.get(&entity) {
-            for top_entity in tops {
-                any_ground = any_ground
-                    | propagate_velocity(
-                        *top_entity,
-                        velocity,
-                        adjacency_graph,
-                        grounds,
-                        velocities,
-                    );
-            }
 
-            if any_ground {
+        if propagation_velocity.y > 0.0 {
+            if let Some(tops) = adjacency_graph.tops.get(&entity)  {
                 for top_entity in tops {
-                    propagate_velocity(
-                        *top_entity,
-                        Vec2::zero(),
-                        adjacency_graph,
-                        grounds,
-                        velocities,
-                    );
+                    any_ground = any_ground
+                        | propagate_velocity(
+                            *top_entity,
+                            propagation_velocity,
+                            adjacency_graph,
+                            grounds,
+                            velocities,
+                        );
+                }
+    
+                if any_ground {
+                    for top_entity in tops {
+                        propagate_velocity(
+                            *top_entity,
+                            Vec2::zero(),
+                            adjacency_graph,
+                            grounds,
+                            velocities,
+                        );
+                    }
                 }
             }
         }
+
 
         let mut node_velocity = velocities.get_mut(entity).expect("velocity");
 
         if any_ground {
             node_velocity.0.unwrap().y = 0.0;
         } else {
+
+            if propagation_velocity.y == 0.0 {
+                return false;
+            }
+
             match node_velocity.0 {
                 Some(mut old_velocity) => {
-                    old_velocity.y = velocity.y;
+
+                    old_velocity.y = propagation_velocity.y;
 
                     *node_velocity = Velocity(Some(old_velocity));
-
-                    // shit gets real
                 }
-                None => node_velocity.0 = Some(Vec2::new(0.0, velocity.y)),
+                None => node_velocity.0 = Some(Vec2::new(0.0, propagation_velocity.y)),
             }
         }
     }
+
+    dbg!(entity, velocities.get_mut(entity).unwrap().0);
 
     false
 }
