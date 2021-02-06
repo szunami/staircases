@@ -1035,7 +1035,6 @@ fn propagate_velocity(
     mut velocities: &mut Query<&mut Velocity>,
 ) -> bool {
     if grounds.get(entity).is_ok() {
-        dbg!("hit ground");
         return true;
     }
 
@@ -1079,7 +1078,6 @@ fn propagate_velocity(
                     node_velocity.0 = Some(new_velocity);
                 }
                 None => {
-                    dbg!("No existing velocity");
                     node_velocity.0 = Some(x_velocity);
                 }
             }
@@ -1125,7 +1123,6 @@ fn propagate_velocity(
                     node_velocity.0 = Some(new_velocity);
                 }
                 None => {
-                    dbg!("No existing velocity");
                     node_velocity.0 = Some(x_velocity);
                 }
             }
@@ -1182,8 +1179,6 @@ fn propagate_velocity(
             }
         }
     }
-
-    dbg!(entity, velocities.get_mut(entity).unwrap().0);
 
     false
 }
