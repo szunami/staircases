@@ -874,19 +874,13 @@ fn velocity_propagation(
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
-
         let velocity = match propagation_result.y {
-            Some(y) => {
-                Velocity(Some(Vec2::new(propagation_result.x, y)))
-            }
-            None => {
-                Velocity(Some(Vec2::new(propagation_result.x, 0.0)))
-            }
+            Some(y) => Velocity(Some(Vec2::new(propagation_result.x, y))),
+            None => Velocity(Some(Vec2::new(propagation_result.x, 0.0))),
         };
 
         velocities.set(*entity, velocity);
     }
-
 }
 
 struct PropagationResult {
@@ -916,7 +910,7 @@ fn propagate_velocity(
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
 
-    results: &mut HashMap<Entity, PropagationResult>,
+    propagation_results: &mut HashMap<Entity, PropagationResult>,
 ) -> bool {
     if grounds.get(entity).is_ok() {
         return true;
@@ -927,29 +921,15 @@ fn propagate_velocity(
     // handle x first
     if propagation_velocity.x < 0.0 {
         let mut blocked = false;
-        let x_velocity = Vec2::new(propagation_velocity.x, 0.0);
 
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
-                blocked = blocked
-                    | propagate_velocity(
-                        *left_entity,
-                        x_velocity,
-                        adjacency_graph,
-                        grounds,
-                        results,
-                    );
+                blocked = blocked | test_left(*left_entity, adjacency_graph, grounds)
             }
 
-            if blocked {
+            if !blocked {
                 for left_entity in left_entities {
-                    propagate_velocity(
-                        *left_entity,
-                        Vec2::zero(),
-                        adjacency_graph,
-                        grounds,
-                        results,
-                    );
+                    propagate_x_left(*left_entity, adjacency_graph, propagation_velocity.x, propagation_results)
                 }
             }
         }
@@ -973,7 +953,7 @@ fn propagate_velocity(
                             propagation_velocity,
                             adjacency_graph,
                             grounds,
-                            results,
+                            propagation_results,
                         );
                 }
 
@@ -984,7 +964,7 @@ fn propagate_velocity(
                             Vec2::zero(),
                             adjacency_graph,
                             grounds,
-                            results,
+                            propagation_results,
                         );
                     }
                 }
@@ -996,7 +976,7 @@ fn propagate_velocity(
         }
     }
 
-    match results.entry(entity) {
+    match propagation_results.entry(entity) {
         // someone propagated here already
         Entry::Occupied(mut existing_result) => {
             let existing_result = existing_result.get_mut();
@@ -1023,4 +1003,47 @@ fn propagate_velocity(
     }
 
     false
+}
+
+fn test_left(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
+    if grounds.get(entity).is_ok() {
+        return true;
+    }
+
+    if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
+        for left_entity in left_entities {
+            if test_left(*left_entity, adjacency_graph, grounds) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn propagate_x_left(
+    entity: Entity,
+    adjacency_graph: &AdjacencyGraph,
+    x: f32,
+    propagation_results: &mut HashMap<Entity, PropagationResult>,
+) {
+    if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
+        // this is where we need to propagate_just_x
+        for left_entity in left_entities {
+            propagate_x_left(*left_entity, adjacency_graph, x, propagation_results);
+        }
+    }
+
+    match propagation_results.entry(entity) {
+        Entry::Occupied(mut existing_result) => {
+            // (???)
+            existing_result.insert(PropagationResult {
+                x,
+                y: existing_result.get().y,
+            });
+        }
+        Entry::Vacant(vacancy) => {
+            vacancy.insert(PropagationResult { x, y: None });
+        }
+    }
 }
