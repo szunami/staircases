@@ -506,7 +506,7 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
                 transform.translation.y += velocity.y;
             }
             None => {
-                dbg!("Shouldn't happen in the future!");
+                // dbg!("Shouldn't happen in the future!");
             }
         }
     }
@@ -1031,9 +1031,9 @@ fn propagate_velocity(
 
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
-                dbg!("propagating from ", entity);
+                dbg!("propagating left from ", entity);
 
-                dbg!("propagating to ", left_entity);
+                dbg!("propagating left to ", left_entity);
                 any_ground = any_ground
                     | propagate_velocity(
                         *left_entity,
@@ -1046,14 +1046,13 @@ fn propagate_velocity(
 
             if any_ground {
                 for left_entity in left_entities {
-                    any_ground = any_ground
-                        | propagate_velocity(
-                            *left_entity,
-                            Vec2::zero(),
-                            adjacency_graph,
-                            grounds,
-                            velocities,
-                        );
+                    propagate_velocity(
+                        *left_entity,
+                        Vec2::zero(),
+                        adjacency_graph,
+                        grounds,
+                        velocities,
+                    );
                 }
             }
         }
@@ -1071,6 +1070,46 @@ fn propagate_velocity(
             }
         }
     }
+
+    // handle y
+    {
+        let mut any_ground = false;
+        if let Some(tops) = adjacency_graph.tops.get(&entity) {
+            for top_entity in tops {
+                any_ground = any_ground
+                    | propagate_velocity(*top_entity, velocity, adjacency_graph, grounds, velocities);
+            }
+    
+            if any_ground {
+                for top_entity in tops {
+                    propagate_velocity(
+                        *top_entity,
+                        Vec2::zero(),
+                        adjacency_graph,
+                        grounds,
+                        velocities,
+                    );
+                }
+            }
+        }
+
+        let mut node_velocity = velocities.get_mut(entity).expect("velocity");
+
+        if any_ground {
+            node_velocity.0.unwrap().y = 0.0;
+        } else {
+
+            match node_velocity.0 {
+                Some(_) => {
+                    // shit gets real
+                }
+                None => {
+                    node_velocity.0 = Some(Vec2::new(0.0, velocity.y))
+                }
+            }
+        }
+    }
+
 
     false
 }
