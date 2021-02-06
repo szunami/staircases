@@ -103,7 +103,7 @@ fn setup2(
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 50.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(-200.0, -100.0, 1.0)),
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
@@ -227,21 +227,21 @@ fn setup2(
         }
     }
 
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
+    // {
+    //     let crate_box = Vec2::new(50.0, 50.0);
 
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
+    //     commands
+    //         .spawn(SpriteBundle {
+    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //             transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+    //             sprite: Sprite::new(crate_box),
+    //             ..Default::default()
+    //         })
+    //         .with(Crate {})
+    //         .with(BoundingBox(crate_box))
+    //         .with(IntrinsicVelocity(None))
+    //         .with(Velocity(None));
+    // }
 }
 
 fn setup(
@@ -475,7 +475,6 @@ fn player_intrinsic_velocity(
             None => -1.0,
         };
 
-        // TODO: assign falling
         *velocity = IntrinsicVelocity(Some(Vec2::new(x_velocity, y_velocity)));
     }
 }

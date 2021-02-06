@@ -1,4 +1,7 @@
+20200205
 
+current bug: player floats for one frame as staircase transitions down
+this causes player to fall through
 
 
 ## TODO:
