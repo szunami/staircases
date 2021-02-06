@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
 
@@ -103,7 +103,8 @@ fn setup2(
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_translation(Vec3::new(-200.0, -100.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(100.0, 150.0, 1.0)),
+
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
         })
@@ -162,7 +163,7 @@ fn setup2(
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-500.0, -75.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(-500.0, -175.0, 1.0)),
                 sprite: Sprite::new(ground_box),
                 ..Default::default()
             })
@@ -185,84 +186,8 @@ fn setup2(
             .with(Velocity(None));
     }
 
-    {
-        let escalator_transform = Transform::from_translation(Vec3::new(-300.0, -75.0, 0.0));
-
-        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
-
-        let escalator = commands
-            .spawn(SpriteSheetBundle {
-                sprite: TextureAtlasSprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                    ..TextureAtlasSprite::default()
-                },
-
-                visible: Visible {
-                    is_visible: true,
-                    is_transparent: true,
-                },
-                texture_atlas: walk_handle.clone_weak(),
-                transform: escalator_transform,
-                ..Default::default()
-            })
-            .with(Escalator {})
-            .with(Velocity(None))
-            .with(escalator_box.clone())
-            .current_entity()
-            .expect("Parent");
-
-        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                    transform: step_transform,
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(step_box.clone())
-                .with(Step { arm, escalator })
-                .with(Velocity(None))
-                .with(IntrinsicVelocity(None));
-        }
-    }
-
     // {
-    //     let crate_box = Vec2::new(50.0, 50.0);
-
-    //     commands
-    //         .spawn(SpriteBundle {
-    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //             transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-    //             sprite: Sprite::new(crate_box),
-    //             ..Default::default()
-    //         })
-    //         .with(Crate {})
-    //         .with(BoundingBox(crate_box))
-    //         .with(IntrinsicVelocity(None))
-    //         .with(Velocity(None));
-    // }
-}
-
-fn setup(
-    commands: &mut Commands,
-
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let walk_handle = asset_server.load("textures/base.png");
-    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
-
-    let walk_handle = texture_atlases.add(walk_atlas);
-
-    commands
-        .spawn(Camera2dBundle::default())
-        .spawn(CameraUiBundle::default());
-
-    // {
-    //     let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+    //     let escalator_transform = Transform::from_translation(Vec3::new(-300.0, -75.0, 0.0));
 
     //     let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
@@ -304,92 +229,20 @@ fn setup(
     // }
 
     {
-        let ground_box = Vec2::new(400.0, 50.0);
+        let crate_box = Vec2::new(50.0, 50.0);
+
         commands
             .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, -200.0, 1.0)),
-                sprite: Sprite::new(ground_box),
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                sprite: Sprite::new(crate_box),
                 ..Default::default()
             })
-            .with(Ground {})
-            .with(BoundingBox(ground_box))
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
             .with(Velocity(None));
     }
-
-    {
-        let ground_box = Vec2::new(400.0, 50.0);
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(400.0, -150.0, 1.0)),
-                sprite: Sprite::new(ground_box),
-                ..Default::default()
-            })
-            .with(Ground {})
-            .with(BoundingBox(ground_box))
-            .with(Velocity(None));
-    }
-
-    {
-        let ground_box = Vec2::new(400.0, 50.0);
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-400.0, -150.0, 1.0)),
-                sprite: Sprite::new(ground_box),
-                ..Default::default()
-            })
-            .with(Ground {})
-            .with(BoundingBox(ground_box))
-            .with(Velocity(None));
-    }
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(100.0, 200.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(None));
-
-    // commands
-    //     .spawn(SpriteBundle {
-    //         material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //         transform: Transform::from_translation(Vec3::new(100.0, 250.0, 1.0)),
-    //         sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-    //         ..Default::default()
-    //     })
-    //     .with(Crate {})
-    //     .with(BoundingBox(Vec2::new(50.0, 50.0)))
-    //     .with(Velocity(None));
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-            transform: Transform::from_translation(Vec3::new(00.0, 250.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Crate {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(None))
-        .with(IntrinsicVelocity(None));
-
-    commands
-        .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_translation(Vec3::new(00.0, 150.0, 1.0)),
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-            ..Default::default()
-        })
-        .with(Player {})
-        .with(BoundingBox(Vec2::new(50.0, 50.0)))
-        .with(Velocity(None))
-        .with(IntrinsicVelocity(None));
 }
 
 fn steps(
@@ -1008,15 +861,37 @@ fn velocity_propagation(
 
     intrinsic_velocity_sources.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("sort velocity"));
 
+    let mut propagation_results = HashMap::new();
+
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
         propagate_velocity(
             entity,
             intrinsic_velocity,
             &*adjacency_graph,
             &grounds,
-            &mut velocities,
+            &mut propagation_results,
         );
     }
+
+    for (entity, propagation_result) in propagation_results.iter() {
+
+        let velocity = match propagation_result.y {
+            Some(y) => {
+                Velocity(Some(Vec2::new(propagation_result.x, y)))
+            }
+            None => {
+                Velocity(Some(Vec2::new(propagation_result.x, 0.0)))
+            }
+        };
+
+        velocities.set(*entity, velocity);
+    }
+
+}
+
+struct PropagationResult {
+    x: f32,
+    y: Option<f32>,
 }
 
 // maybe want a "dry run" option
@@ -1026,156 +901,124 @@ fn velocity_propagation(
 // if y velocity is increasing, ditch old stuff (?)
 // if y velocity is geq, add (?)
 
+// want to split "propagating to others" vs "assigning to self"
+
+// test_left
+// propagate_left
+// test_right
+// propagate_right
+// test_up
+// propagate
+
 fn propagate_velocity(
     entity: Entity,
     propagation_velocity: Vec2,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
-    mut velocities: &mut Query<&mut Velocity>,
+
+    results: &mut HashMap<Entity, PropagationResult>,
 ) -> bool {
     if grounds.get(entity).is_ok() {
         return true;
     }
 
+    let mut x: f32 = 0.0;
+
     // handle x first
     if propagation_velocity.x < 0.0 {
-        let mut any_ground = false;
+        let mut blocked = false;
         let x_velocity = Vec2::new(propagation_velocity.x, 0.0);
 
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
-                any_ground = any_ground
+                blocked = blocked
                     | propagate_velocity(
                         *left_entity,
                         x_velocity,
                         adjacency_graph,
                         grounds,
-                        velocities,
+                        results,
                     );
             }
 
-            if any_ground {
+            if blocked {
                 for left_entity in left_entities {
                     propagate_velocity(
                         *left_entity,
                         Vec2::zero(),
                         adjacency_graph,
                         grounds,
-                        velocities,
+                        results,
                     );
                 }
             }
         }
 
-        if !any_ground {
-            let mut node_velocity = velocities.get_mut(entity).expect("velocity");
-
-            match node_velocity.0 {
-                Some(prior_velocity) => {
-                    let new_velocity =
-                        Vec2::new(prior_velocity.x.min(x_velocity.x), prior_velocity.y);
-                    node_velocity.0 = Some(new_velocity);
-                }
-                None => {
-                    node_velocity.0 = Some(x_velocity);
-                }
-            }
-        }
-    }
-    if propagation_velocity.x > 0.0 {
-        let mut any_ground = false;
-        let x_velocity = Vec2::new(propagation_velocity.x, 0.0);
-
-        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
-            for right_entity in right_entities {
-                any_ground = any_ground
-                    | propagate_velocity(
-                        *right_entity,
-                        x_velocity,
-                        adjacency_graph,
-                        grounds,
-                        velocities,
-                    )
-            }
-
-            if any_ground {
-                for right_entity in right_entities {
-                    propagate_velocity(
-                        *right_entity,
-                        Vec2::zero(),
-                        adjacency_graph,
-                        grounds,
-                        velocities,
-                    );
-                }
-            }
-        }
-
-        if !any_ground {
-            let mut node_velocity = velocities.get_mut(entity).expect("velocity");
-
-            match node_velocity.0 {
-                Some(prior_velocity) => {
-                    // maybe x should be additive here?
-                    let new_velocity =
-                        Vec2::new(prior_velocity.x.max(x_velocity.x), prior_velocity.y);
-                    node_velocity.0 = Some(new_velocity);
-                }
-                None => {
-                    node_velocity.0 = Some(x_velocity);
-                }
-            }
+        if !blocked {
+            x = propagation_velocity.x;
         }
     }
 
     // handle y
+    let mut y: f32 = 0.0;
     {
-        let mut any_ground = false;
+        let mut blocked = false;
 
-        if propagation_velocity.y > 0.0 {
+        if propagation_velocity.y != 0.0 {
             if let Some(tops) = adjacency_graph.tops.get(&entity) {
                 for top_entity in tops {
-                    any_ground = any_ground
+                    blocked = blocked
                         | propagate_velocity(
                             *top_entity,
                             propagation_velocity,
                             adjacency_graph,
                             grounds,
-                            velocities,
+                            results,
                         );
                 }
 
-                if any_ground {
+                if blocked {
                     for top_entity in tops {
                         propagate_velocity(
                             *top_entity,
                             Vec2::zero(),
                             adjacency_graph,
                             grounds,
-                            velocities,
+                            results,
                         );
                     }
                 }
             }
         }
 
-        let mut node_velocity = velocities.get_mut(entity).expect("velocity");
+        if !blocked {
+            y = propagation_velocity.y;
+        }
+    }
 
-        if any_ground {
-            node_velocity.0.unwrap().y = 0.0;
-        } else {
-            if propagation_velocity.y == 0.0 {
-                return false;
-            }
-
-            match node_velocity.0 {
-                Some(mut old_velocity) => {
-                    old_velocity.y = propagation_velocity.y;
-
-                    *node_velocity = Velocity(Some(old_velocity));
+    match results.entry(entity) {
+        // someone propagated here already
+        Entry::Occupied(mut existing_result) => {
+            let existing_result = existing_result.get_mut();
+            // did they propagate y?
+            match existing_result.y {
+                Some(existing_y) => {
+                    // yes, if we're bigger we override x and y
+                    if existing_y < y {
+                        *existing_result = PropagationResult { x: x, y: Some(y) };
+                    }
                 }
-                None => node_velocity.0 = Some(Vec2::new(0.0, propagation_velocity.y)),
+                None => {
+                    // no, we propagate y
+                    *existing_result = PropagationResult {
+                        x: x + existing_result.x,
+                        y: Some(y),
+                    };
+                }
             }
+        }
+        Entry::Vacant(vacancy) => {
+            vacancy.insert(PropagationResult { x, y: Some(y) });
         }
     }
 
