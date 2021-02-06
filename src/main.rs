@@ -898,7 +898,10 @@ fn velocity_propagation(
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
         propagate_velocity(
             entity,
-            intrinsic_velocity,
+            PropagationResult {
+                x: intrinsic_velocity.x,
+                y: Some(intrinsic_velocity.y),
+            },
             &*adjacency_graph,
             &grounds,
             &mut propagation_results,
@@ -915,6 +918,7 @@ fn velocity_propagation(
     }
 }
 
+#[derive(Clone)]
 struct PropagationResult {
     x: f32,
     y: Option<f32>,
@@ -922,66 +926,81 @@ struct PropagationResult {
 
 fn propagate_velocity(
     entity: Entity,
-    mut propagation_velocity: Vec2,
+    mut propagation_velocity: PropagationResult,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
 
     propagation_results: &mut HashMap<Entity, PropagationResult>,
 ) {
     // handle x first
-    if propagation_velocity.x < 0.0 {
-        let mut blocked = false;
 
+    let mut x_blocked = false;
+
+    if propagation_velocity.x < 0.0 {
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
-                blocked = blocked | test_left(*left_entity, adjacency_graph, grounds)
+                x_blocked = x_blocked | test_left(*left_entity, adjacency_graph, grounds)
             }
 
-            if !blocked {
+            if !x_blocked {
                 for left_entity in left_entities {
-                    propagate_x_left(
+                    let x_projection = PropagationResult {
+                        x: propagation_velocity.x,
+                        y: None,
+                    };
+
+                    propagate_velocity(
                         *left_entity,
+                        x_projection,
                         adjacency_graph,
-                        propagation_velocity.x,
+                        grounds,
                         propagation_results,
                     )
                 }
             }
         }
 
-        if blocked {
+        if x_blocked {
             propagation_velocity.x = 0.0;
         }
     }
 
     // handle y
     {
-        let mut blocked = false;
+        let mut y_blocked = false;
 
-        if propagation_velocity.y != 0.0 {
-            if let Some(tops) = adjacency_graph.tops.get(&entity) {
-                for top_entity in tops {
-                    blocked = blocked | test_up(*top_entity, adjacency_graph, grounds);
-                }
-
-                if !blocked {
+        match propagation_velocity.y {
+            Some(_) => {
+                if let Some(tops) = adjacency_graph.tops.get(&entity) {
                     for top_entity in tops {
-                        propagate_velocity(
-                            *top_entity,
-                            propagation_velocity,
-                            adjacency_graph,
-                            grounds,
-                            propagation_results,
-                        );
+                        y_blocked = y_blocked | test_up(*top_entity, adjacency_graph, grounds);
+                    }
+
+                    if y_blocked {
+                        propagation_velocity.y = Some(0.0);
                     }
                 }
             }
+            None => {}
         }
 
-        if blocked {
-            propagation_velocity.y = 0.0;
+        // need to propagate velocity up, even if we're blocked up
+        // to propagate x velocity
+
+        if let Some(tops) = adjacency_graph.tops.get(&entity) {
+            for top_entity in tops {
+                propagate_velocity(
+                    *top_entity,
+                    propagation_velocity.clone(),
+                    adjacency_graph,
+                    grounds,
+                    propagation_results,
+                );
+            }
         }
     }
+
+    // handle self!
 
     match propagation_results.entry(entity) {
         // someone propagated here already
@@ -991,18 +1010,25 @@ fn propagate_velocity(
             match existing_result.y {
                 Some(existing_y) => {
                     // yes, if we're bigger we override x and y
-                    if existing_y < propagation_velocity.y {
-                        *existing_result = PropagationResult {
-                            x: propagation_velocity.x,
-                            y: Some(propagation_velocity.y),
-                        };
+                    match propagation_velocity.clone().y {
+                        Some(new_y) => {
+                            if existing_y < new_y {
+                                *existing_result = PropagationResult {
+                                    x: propagation_velocity.clone().x,
+                                    y: propagation_velocity.clone().y,
+                                };
+                            }
+                        }
+                        None => {
+                            // we don't have y, they do; don't propagate (?)
+                        }
                     }
                 }
                 None => {
                     // no, we propagate y
                     *existing_result = PropagationResult {
-                        x: propagation_velocity.x + existing_result.x,
-                        y: Some(propagation_velocity.y),
+                        x: propagation_velocity.clone().x + existing_result.x,
+                        y: propagation_velocity.clone().y,
                     };
                 }
             }
@@ -1010,7 +1036,7 @@ fn propagate_velocity(
         Entry::Vacant(vacancy) => {
             vacancy.insert(PropagationResult {
                 x: propagation_velocity.x,
-                y: Some(propagation_velocity.y),
+                y: propagation_velocity.clone().y,
             });
         }
     }
@@ -1030,37 +1056,6 @@ fn test_left(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&
     }
 
     false
-}
-
-// this needs to propagate up too ugh
-// and up propagations need to test for ground
-
-fn propagate_x_left(
-    entity: Entity,
-    adjacency_graph: &AdjacencyGraph,
-    x: f32,
-    propagation_results: &mut HashMap<Entity, PropagationResult>,
-) {
-    if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
-        for left_entity in left_entities {
-            propagate_x_left(*left_entity, adjacency_graph, x, propagation_results);
-        }
-    }
-
-    
-
-    match propagation_results.entry(entity) {
-        Entry::Occupied(mut existing_result) => {
-            // (???)
-            existing_result.insert(PropagationResult {
-                x,
-                y: existing_result.get().y,
-            });
-        }
-        Entry::Vacant(vacancy) => {
-            vacancy.insert(PropagationResult { x, y: None });
-        }
-    }
 }
 
 fn test_up(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
