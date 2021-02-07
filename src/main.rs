@@ -8,6 +8,7 @@ fn main() {
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_resource(AdjacencyGraph::default())
         .add_startup_system(setup2.system())
+        .add_system(bevy::input::system::exit_on_esc_system.system())
         // .add_system(framerate.system())
         // reset IV
         .add_system(reset_intrinsic_velocity.system())
@@ -24,13 +25,8 @@ fn main() {
         .add_system(velocity_propagation.system())
         // reset velocity
         // for each IV, in order of ascending y, propagate
-        // .add_system(initialize_velocity.system())
-        // .add_system(propagate_velocity_horizontally.system())
-        // .add_system(propagate_velocity_vertically.system())
         .add_system(update_position.system())
         .add_system(update_step_arm.system())
-        // .add_system(x_collision_correction.system())
-        .add_system(bevy::input::system::exit_on_esc_system.system())
         .run();
 }
 
@@ -117,16 +113,62 @@ fn setup2(
         .with(IntrinsicVelocity(None));
 
     {
-        let ground_box = Vec2::new(150.0, 50.0);
+        let ground_box = Vec2::new(300.0, 50.0);
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(0.0, -50.0, 1.0)),
                 sprite: Sprite::new(ground_box),
                 ..Default::default()
             })
             .with(Ground {})
             .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
+
+    {
+        let ground_box = Vec2::new(50.0, 50.0);
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-200.0, 50.0, 1.0)),
+                sprite: Sprite::new(ground_box),
+                ..Default::default()
+            })
+            .with(Ground {})
+            .with(BoundingBox(ground_box))
+            .with(Velocity(None));
+    }
+
+    {
+        let crate_box = Vec2::new(50.0, 50.0);
+
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
+            .with(Velocity(None));
+    }
+
+    {
+        let crate_box = Vec2::new(50.0, 50.0);
+
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
             .with(Velocity(None));
     }
 
@@ -136,7 +178,7 @@ fn setup2(
     //     commands
     //         .spawn(SpriteBundle {
     //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+    //             transform: Transform::from_translation(Vec3::new(-50.0, 0.0, 1.0)),
     //             sprite: Sprite::new(crate_box),
     //             ..Default::default()
     //         })
@@ -145,6 +187,38 @@ fn setup2(
     //         .with(IntrinsicVelocity(None))
     //         .with(Velocity(None));
     // }
+
+    {
+        let crate_box = Vec2::new(50.0, 50.0);
+
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-100.0, 0.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
+            .with(Velocity(None));
+    }
+
+    {
+        let crate_box = Vec2::new(50.0, 50.0);
+
+        commands
+            .spawn(SpriteBundle {
+                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+                transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+                sprite: Sprite::new(crate_box),
+                ..Default::default()
+            })
+            .with(Crate {})
+            .with(BoundingBox(crate_box))
+            .with(IntrinsicVelocity(None))
+            .with(Velocity(None));
+    }
 }
 
 fn steps(
@@ -484,7 +558,9 @@ fn velocity_propagation(
             None => Velocity(Some(Vec2::new(propagation_result.x, 0.0))),
         };
 
-        velocities.set(*entity, velocity);
+        if let Err(e) = velocities.set(*entity, velocity) {
+            eprintln!("Error setting velocity: {:?}", e);
+        }
     }
 }
 
