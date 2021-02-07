@@ -146,7 +146,7 @@ fn setup2(
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(51.0, 50.0, 1.0)),
                 sprite: Sprite::new(crate_box),
                 ..Default::default()
             })
@@ -162,7 +162,7 @@ fn setup2(
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(100.0, 0.0, 1.0)),
                 sprite: Sprite::new(crate_box),
                 ..Default::default()
             })
@@ -171,22 +171,6 @@ fn setup2(
             .with(IntrinsicVelocity(None))
             .with(Velocity(None));
     }
-
-    // {
-    //     let crate_box = Vec2::new(50.0, 50.0);
-
-    //     commands
-    //         .spawn(SpriteBundle {
-    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-    //             transform: Transform::from_translation(Vec3::new(-50.0, 0.0, 1.0)),
-    //             sprite: Sprite::new(crate_box),
-    //             ..Default::default()
-    //         })
-    //         .with(Crate {})
-    //         .with(BoundingBox(crate_box))
-    //         .with(IntrinsicVelocity(None))
-    //         .with(Velocity(None));
-    // }
 
     {
         let crate_box = Vec2::new(50.0, 50.0);
@@ -540,6 +524,9 @@ fn velocity_propagation(
     let mut propagation_results = HashMap::new();
 
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
+
+        let mut already_visited = HashSet::new();
+
         propagate_velocity(
             entity,
             PropagationResult {
@@ -548,6 +535,7 @@ fn velocity_propagation(
             },
             &*adjacency_graph,
             &grounds,
+            &mut already_visited,
             &mut propagation_results,
         );
     }
@@ -570,11 +558,15 @@ struct PropagationResult {
     y: Option<f32>,
 }
 
+// avoid double propagation: add &mut HashSet<Entity>
+
 fn propagate_velocity(
     entity: Entity,
     mut propagation_velocity: PropagationResult,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
+
+    already_visited: &mut HashSet<Entity>,
 
     propagation_results: &mut HashMap<Entity, PropagationResult>,
 ) {
@@ -583,6 +575,13 @@ fn propagate_velocity(
     if grounds.get(entity).is_ok() {
         return;
     }
+
+    if already_visited.contains(&entity) {
+        return;
+    }
+
+    already_visited.insert(entity);
+
     // handle x first
 
     let mut x_blocked = false;
@@ -605,6 +604,7 @@ fn propagate_velocity(
                         x_projection,
                         adjacency_graph,
                         grounds,
+                        already_visited,
                         propagation_results,
                     )
                 }
@@ -634,6 +634,7 @@ fn propagate_velocity(
                         x_projection,
                         adjacency_graph,
                         grounds,
+                        already_visited,
                         propagation_results,
                     )
                 }
@@ -695,6 +696,7 @@ fn propagate_velocity(
                     propagation_velocity.clone(),
                     adjacency_graph,
                     grounds,
+                    already_visited,
                     propagation_results,
                 );
             }

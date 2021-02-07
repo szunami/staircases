@@ -1,3 +1,13 @@
+20200207
+
+test_down fixes weird falling edge case! seems reasonable
+
+todo: fix double x transfer of momentum using `already_visited`
+
+maybe some args of propagation can be bundled somehow?
+
+unit test snippet: https://discord.com/channels/691052431525675048/742884593551802431/808047868425797693
+
 20200205
 
 current bug: player floats for one frame as staircase transitions down
