@@ -814,9 +814,12 @@ mod tests {
         let mut stage = SystemStage::serial();
 
         stage
-            .add_system((|mut res: ResMut<i32>| {
-                *res = 5;
-            }).system())
+            .add_system(
+                (|mut res: ResMut<i32>| {
+                    *res = 5;
+                })
+                .system(),
+            )
             .add_system(
                 (|res: Res<i32>| {
                     assert_eq!(*res, 2);
