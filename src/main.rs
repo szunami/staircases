@@ -816,15 +816,31 @@ mod tests {
 
         commands.set_entity_reserver(world.get_entity_reserver());
 
-
         commands_init(&mut commands);
         commands.apply(&mut world, &mut resources);
 
         let mut stage = SystemStage::serial();
 
         stage
+            // .add_system(bevy::input::system::exit_on_esc_system.system())
+            // .add_system(framerate.system())
+            // reset IV
+            .add_system(reset_intrinsic_velocity.system())
+            // build edge graph
+            .add_system(build_adjacency_graph.system())
+            // assign step IV
+            .add_system(step_intrinsic_velocity.system())
+            // assign player IV
             .add_system(player_intrinsic_velocity.system())
-            .add_system(velocity_propagation.system());
+            // assign falling IV
+            .add_system(falling_intrinsic_velocity.system())
+            // propagation
+            .add_system(reset_velocity.system())
+            .add_system(velocity_propagation.system())
+            // reset velocity
+            // for each IV, in order of ascending y, propagate
+            .add_system(update_position.system())
+            .add_system(update_step_arm.system());
 
         for system in assertions {
             stage.add_system(system);
@@ -837,77 +853,62 @@ mod tests {
 
     #[test]
     fn player_falls_if_not_atop_anything() {
-        let mut world = World::default();
-        let mut resources = Resources::default();
-        let mut commands = Commands::default();
+        helper(
+            |commands: &mut Commands| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
 
-        resources.insert(Input::<KeyCode>::default());
-        resources.insert(AdjacencyGraph::default());
-
-        commands.set_entity_reserver(world.get_entity_reserver());
-
-        {
-            // custom code! fn of commands
-
-            commands
-                .spawn(SpriteBundle {
-                    transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
-
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(Player {})
-                .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                .with(Velocity(None))
-                .with(IntrinsicVelocity(None));
-        }
-
-        commands.apply(&mut world, &mut resources);
-
-        let mut stage = SystemStage::serial();
-
-        let x = velocity_propagation.system();
-
-        stage
-            .add_system(player_intrinsic_velocity.system())
-            .add_system(velocity_propagation.system())
-            // custom code! systems with assertions
-            .add_system(
-                (|players: Query<(&Player, &Velocity)>| {
-                    for (_player, velocity) in players.iter() {
-                        assert_eq!(velocity.0, Some(Vec2::new(0.0, -1.0)));
-                    }
-                })
-                .system(),
-            );
-        stage.initialize(&mut world, &mut resources);
-
-        stage.run_once(&mut world, &mut resources)
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+            },
+            vec![(|players: Query<(&Player, &Velocity)>| {
+                for (_player, velocity) in players.iter() {
+                    assert_eq!(velocity.0, Some(Vec2::new(0.0, -1.0)));
+                }
+            })
+            .system()],
+        )
     }
 
     #[test]
-    fn take_two() {
-        let commands_init = |commands: &mut Commands| {
-            commands
-                .spawn(SpriteBundle {
-                    transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
+    fn player_doesnt_fall_if_atop_ground() {
+        helper(
+            |commands: &mut Commands| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
 
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(Player {})
-                .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                .with(Velocity(None))
-                .with(IntrinsicVelocity(None));
-        };
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
 
-        let assertions = vec![(|players: Query<(&Player, &Velocity)>| {
-            for (_player, velocity) in players.iter() {
-                assert_eq!(velocity.0, Some(Vec2::new(0.0, -1.0)));
-            }
-        })
-        .system()];
-
-        helper(commands_init, assertions);
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+            },
+            vec![(|players: Query<(&Player, &Velocity)>| {
+                for (_player, velocity) in players.iter() {
+                    assert_eq!(velocity.0, Some(Vec2::new(0.0, 0.0)));
+                }
+            })
+            .system()],
+        )
     }
 }
