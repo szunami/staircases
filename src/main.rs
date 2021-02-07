@@ -1095,4 +1095,137 @@ mod tests {
             ],
         )
     }
+
+    #[test]
+    fn basic_blocking() {
+        helper(
+            |commands, resources| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let crate_box = Vec2::new(50.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                let ground_box = Vec2::new(50.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-100.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input);
+            },
+            vec![
+                (|players: Query<(&Player, &Velocity)>| {
+                    for (_player, velocity) in players.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(0.0, 0.0)));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&Crate, &Velocity)>| {
+                    for (_crate, velocity) in crates.iter() {
+                        assert_eq!(velocity.0, None);
+                    }
+                })
+                .system(),
+            ],
+        )
+    }
+
+    #[test]
+    fn push_off_edge() {
+        helper(
+            |commands, resources| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+
+                let ground_box = Vec2::new(50.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let crate_box = Vec2::new(50.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input)
+            },
+            vec![
+                (|players: Query<(&Player, &Velocity)>| {
+                    for (_player, velocity) in players.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&Crate, &Velocity)>| {
+                    for (_crate, velocity) in crates.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, -1.0)));
+                    }
+                })
+                .system(),
+            ],
+        );
+    }
 }
