@@ -121,7 +121,7 @@ fn setup2(
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, -50.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
                 sprite: Sprite::new(ground_box),
                 ..Default::default()
             })
@@ -130,37 +130,21 @@ fn setup2(
             .with(Velocity(None));
     }
 
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
+    // {
+    //     let crate_box = Vec2::new(50.0, 50.0);
 
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
-
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
-
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-50.0, 0.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
+    //     commands
+    //         .spawn(SpriteBundle {
+    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+    //             sprite: Sprite::new(crate_box),
+    //             ..Default::default()
+    //         })
+    //         .with(Crate {})
+    //         .with(BoundingBox(crate_box))
+    //         .with(IntrinsicVelocity(None))
+    //         .with(Velocity(None));
+    // }
 }
 
 fn steps(
@@ -590,14 +574,15 @@ fn propagate_velocity(
         let mut y_blocked = false;
 
         match propagation_velocity.y {
-            Some(_) => {
+            Some(proposed_y) => {
                 if let Some(tops) = adjacency_graph.tops.get(&entity) {
                     for top_entity in tops {
                         y_blocked = y_blocked | test_up(*top_entity, adjacency_graph, grounds);
                     }
 
                     if y_blocked {
-                        propagation_velocity.y = Some(0.0);
+                        // shouldn't be able to hang from a ground
+                        propagation_velocity.y = Some(proposed_y.min(0.0));
                     }
                 }
             }

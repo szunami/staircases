@@ -3,6 +3,15 @@
 current bug: player floats for one frame as staircase transitions down
 this causes player to fall through
 
+intrinsicVelocity and PropagationResult can become the same thing
+
+Ground can be atop and propagation occurs; this is bad
+
+Can't move if player is atop crate ??? 
+More subtle than that. Still not exactly what is up.
+
+Current issue: player can hang from bottom of ground.
+
 
 ## TODO:
 ---
