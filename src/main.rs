@@ -794,3 +794,37 @@ fn test_down(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&
 
     false
 }
+
+#[cfg(test)]
+mod tests {
+
+    use bevy::ecs::Stage;
+
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let mut world = World::default();
+        let mut resources = Resources::default();
+        let mut commands = Commands::default();
+
+        commands.set_entity_reserver(world.get_entity_reserver());
+        resources.insert(1);
+
+        let mut stage = SystemStage::serial();
+
+        stage
+            .add_system((|mut res: ResMut<i32>| {
+                *res = 5;
+            }).system())
+            .add_system(
+                (|res: Res<i32>| {
+                    assert_eq!(*res, 2);
+                })
+                .system(),
+            );
+
+        stage.initialize(&mut world, &mut resources);
+        stage.run_once(&mut world, &mut resources)
+    }
+}
