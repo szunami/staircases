@@ -804,7 +804,7 @@ mod tests {
 
     fn helper<F>(commands_init: F, assertions: Vec<FuncSystem<()>>)
     where
-        F: FnOnce(&mut Commands) -> (),
+        F: FnOnce(&mut Commands, &mut Resources) -> (),
     {
         let mut world = World::default();
         let mut resources = Resources::default();
@@ -816,7 +816,7 @@ mod tests {
 
         commands.set_entity_reserver(world.get_entity_reserver());
 
-        commands_init(&mut commands);
+        commands_init(&mut commands, &mut resources);
         commands.apply(&mut world, &mut resources);
 
         let mut stage = SystemStage::serial();
@@ -854,7 +854,7 @@ mod tests {
     #[test]
     fn player_falls_if_not_atop_anything() {
         helper(
-            |commands: &mut Commands| {
+            |commands, _resources| {
                 commands
                     .spawn(SpriteBundle {
                         transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
@@ -879,7 +879,7 @@ mod tests {
     #[test]
     fn player_doesnt_fall_if_atop_ground() {
         helper(
-            |commands: &mut Commands| {
+            |commands, _resources| {
                 commands
                     .spawn(SpriteBundle {
                         transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
@@ -909,6 +909,190 @@ mod tests {
                 }
             })
             .system()],
+        )
+    }
+
+    #[test]
+    fn player_moves_left_when_a_is_pressed() {
+        helper(
+            |commands, resources| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input)
+            },
+            vec![(|players: Query<(&Player, &Velocity)>| {
+                for (_player, velocity) in players.iter() {
+                    assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                }
+            })
+            .system()],
+        )
+    }
+
+    #[test]
+    fn basic_propagation() {
+        helper(
+            |commands, resources| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let crate_box = Vec2::new(50.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input)
+            },
+            vec![
+                (|players: Query<(&Player, &Velocity)>| {
+                    for (_player, velocity) in players.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&Crate, &Velocity)>| {
+                    for (_crate, velocity) in crates.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                    }
+                })
+                .system(),
+            ],
+        )
+    }
+
+    #[test]
+    fn double_carry() {
+        helper(
+            |commands, resources| {
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
+
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let crate_box = Vec2::new(50.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input)
+            },
+            vec![
+                (|players: Query<(&Player, &Velocity)>| {
+                    for (_player, velocity) in players.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&Crate, &Velocity)>| {
+                    for (_crate, velocity) in crates.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::new(-1.0, 0.0)));
+                    }
+                })
+                .system(),
+            ],
         )
     }
 }
