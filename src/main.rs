@@ -647,18 +647,38 @@ fn propagate_velocity(
 
     // handle y
     {
-        let mut y_blocked = false;
-
         match propagation_velocity.y {
             Some(proposed_y) => {
-                if let Some(tops) = adjacency_graph.tops.get(&entity) {
-                    for top_entity in tops {
-                        y_blocked = y_blocked | test_up(*top_entity, adjacency_graph, grounds);
+                if proposed_y > 0.0 {
+                    let mut y_blocked_up = false;
+
+                    if let Some(tops) = adjacency_graph.tops.get(&entity) {
+                        for top_entity in tops {
+                            y_blocked_up =
+                                y_blocked_up | test_up(*top_entity, adjacency_graph, grounds);
+                        }
                     }
 
-                    if y_blocked {
+                    if y_blocked_up {
                         // shouldn't be able to hang from a ground
                         propagation_velocity.y = Some(proposed_y.min(0.0));
+                    }
+                }
+
+                if proposed_y < 0.0 {
+                    let mut y_blocked_down = false;
+
+
+                    if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
+                        for bottom_entity in bottoms {
+                            y_blocked_down =
+                            y_blocked_down | test_down(*bottom_entity, adjacency_graph, grounds);
+                        }
+                    }
+
+                    if y_blocked_down {
+                        // shouldn't be able to hang from a ground
+                        propagation_velocity.y = Some(proposed_y.max(0.0));
                     }
                 }
             }
@@ -728,6 +748,8 @@ fn propagate_velocity(
     }
 }
 
+// TODO: Merge test_* into a single fn (?)
+
 fn test_left(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
     if grounds.get(entity).is_ok() {
         return true;
@@ -768,6 +790,22 @@ fn test_up(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Gr
     if let Some(top_entities) = adjacency_graph.tops.get(&entity) {
         for top_entity in top_entities {
             if test_up(*top_entity, adjacency_graph, grounds) {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+fn test_down(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
+    if grounds.get(entity).is_ok() {
+        return true;
+    }
+
+    if let Some(bottom_entities) = adjacency_graph.bottoms.get(&entity) {
+        for bottom_entity in bottom_entities {
+            if test_down(*bottom_entity, adjacency_graph, grounds) {
                 return true;
             }
         }
