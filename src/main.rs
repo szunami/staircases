@@ -56,7 +56,19 @@ enum Arm {
 #[derive(Clone)]
 struct Velocity(Option<Vec2>);
 
-struct IntrinsicVelocity(Option<Vec2>);
+struct IntrinsicVelocity(Option<Propagation>);
+
+#[derive(Clone)]
+struct Propagation {
+    x: f32,
+    y: Option<f32>,
+}
+
+impl Propagation {
+    fn new(x: f32, y: f32) -> Propagation {
+        Propagation { x, y: Some(y) }
+    }
+}
 
 struct Ground;
 
@@ -269,7 +281,7 @@ fn player_intrinsic_velocity(
             None => -1.0,
         };
 
-        *velocity = IntrinsicVelocity(Some(Vec2::new(x_velocity, y_velocity)));
+        *velocity = IntrinsicVelocity(Some(Propagation::new(x_velocity, y_velocity)));
     }
 }
 
@@ -277,16 +289,16 @@ fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
     for (step, mut intrinsic_velocity) in query.iter_mut() {
         match step.arm {
             Arm::A => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
             }
             Arm::B => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(1.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(1.0, -1.0)));
             }
             Arm::C => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(1.0, 0.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(1.0, 0.0)));
             }
             Arm::D => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(-1.0, 1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(-1.0, 1.0)));
             }
         }
     }
@@ -467,11 +479,11 @@ fn falling_intrinsic_velocity(
         match adjacency_graph.bottoms.get(&entity) {
             Some(bottoms) => {
                 if bottoms.is_empty() {
-                    *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
                 }
             }
             None => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Vec2::new(0.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
             }
         }
 
@@ -493,7 +505,7 @@ fn velocity_propagation(
     let mut intrinsic_velocity_sources = vec![];
 
     for (entity, transform, bounding_box, intrinsic_velocity) in order_query.iter() {
-        if let Some(intrinsic_velocity) = intrinsic_velocity.0 {
+        if let Some(intrinsic_velocity) = &intrinsic_velocity.0 {
             let top = transform.translation.y + bounding_box.0.y / 2.0;
 
             intrinsic_velocity_sources.push((entity, top, intrinsic_velocity));
@@ -509,9 +521,9 @@ fn velocity_propagation(
 
         propagate_velocity(
             entity,
-            PropagationResult {
+            Propagation {
                 x: intrinsic_velocity.x,
-                y: Some(intrinsic_velocity.y),
+                y: intrinsic_velocity.y,
             },
             &*adjacency_graph,
             &grounds,
@@ -532,23 +544,17 @@ fn velocity_propagation(
     }
 }
 
-#[derive(Clone)]
-struct PropagationResult {
-    x: f32,
-    y: Option<f32>,
-}
-
 // avoid double propagation: add &mut HashSet<Entity>
 
 fn propagate_velocity(
     entity: Entity,
-    mut propagation_velocity: PropagationResult,
+    mut propagation_velocity: Propagation,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
 
     already_visited: &mut HashSet<Entity>,
 
-    propagation_results: &mut HashMap<Entity, PropagationResult>,
+    propagation_results: &mut HashMap<Entity, Propagation>,
 ) {
     if propagation_velocity.y.is_some() && propagation_velocity.y.unwrap() != 0.0 {}
 
@@ -574,7 +580,7 @@ fn propagate_velocity(
 
             if !x_blocked {
                 for left_entity in left_entities {
-                    let x_projection = PropagationResult {
+                    let x_projection = Propagation {
                         x: propagation_velocity.x,
                         y: None,
                     };
@@ -604,7 +610,7 @@ fn propagate_velocity(
 
             if !x_blocked {
                 for right_entity in right_entities {
-                    let x_projection = PropagationResult {
+                    let x_projection = Propagation {
                         x: propagation_velocity.x,
                         y: None,
                     };
@@ -695,7 +701,7 @@ fn propagate_velocity(
                     match propagation_velocity.y {
                         Some(new_y) => {
                             if existing_y < new_y {
-                                *existing_result = PropagationResult {
+                                *existing_result = Propagation {
                                     x: propagation_velocity.x,
                                     y: propagation_velocity.y,
                                 };
@@ -704,7 +710,7 @@ fn propagate_velocity(
                         None => {
                             // we don't have y, they do; propagate x only (?)
 
-                            *existing_result = PropagationResult {
+                            *existing_result = Propagation {
                                 x: existing_result.x + propagation_velocity.x,
                                 y: existing_result.y,
                             }
@@ -713,7 +719,7 @@ fn propagate_velocity(
                 }
                 None => {
                     // no, we propagate y
-                    *existing_result = PropagationResult {
+                    *existing_result = Propagation {
                         x: propagation_velocity.clone().x + existing_result.x,
                         y: propagation_velocity.clone().y,
                     };
@@ -721,7 +727,7 @@ fn propagate_velocity(
             }
         }
         Entry::Vacant(vacancy) => {
-            vacancy.insert(PropagationResult {
+            vacancy.insert(Propagation {
                 x: propagation_velocity.x,
                 y: propagation_velocity.clone().y,
             });
