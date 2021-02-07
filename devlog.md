@@ -8,6 +8,8 @@ maybe some args of propagation can be bundled somehow?
 
 unit test snippet: https://discord.com/channels/691052431525675048/742884593551802431/808047868425797693
 
+escalator kind of works. steps have weird collisions with other things
+
 20200205
 
 current bug: player floats for one frame as staircase transitions down

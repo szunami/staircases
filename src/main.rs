@@ -99,10 +99,53 @@ fn setup2(
 
     let walk_handle = texture_atlases.add(walk_atlas);
 
+    {
+        let escalator_transform = Transform::from_translation(Vec3::new(-100.0, -25.0, 0.0));
+
+        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+
+        let escalator = commands
+            .spawn(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                    ..TextureAtlasSprite::default()
+                },
+
+                visible: Visible {
+                    is_visible: true,
+                    is_transparent: true,
+                },
+                texture_atlas: walk_handle.clone_weak(),
+                transform: escalator_transform,
+                ..Default::default()
+            })
+            .with(Escalator {})
+            .with(Velocity(None))
+            .with(IntrinsicVelocity(None))
+            .with(escalator_box.clone())
+            .current_entity()
+            .expect("Parent");
+
+        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+            commands
+                .spawn(SpriteBundle {
+                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+                    transform: step_transform,
+                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                    ..Default::default()
+                })
+                .with(step_box.clone())
+                .with(Step { arm, escalator })
+                .with(Velocity(None))
+                .with(IntrinsicVelocity(None));
+        }
+    }
+
     commands
         .spawn(SpriteBundle {
             material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_translation(Vec3::new(50.0, 0.0, 1.0)),
+            transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
 
             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
             ..Default::default()
@@ -113,11 +156,11 @@ fn setup2(
         .with(IntrinsicVelocity(None));
 
     {
-        let ground_box = Vec2::new(300.0, 50.0);
+        let ground_box = Vec2::new(500.0, 50.0);
         commands
             .spawn(SpriteBundle {
                 material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(0.0, -50.0, 1.0)),
+                transform: Transform::from_translation(Vec3::new(0.0, -150.0, 1.0)),
                 sprite: Sprite::new(ground_box),
                 ..Default::default()
             })
@@ -126,83 +169,21 @@ fn setup2(
             .with(Velocity(None));
     }
 
-    {
-        let ground_box = Vec2::new(50.0, 50.0);
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 1.0, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-200.0, 50.0, 1.0)),
-                sprite: Sprite::new(ground_box),
-                ..Default::default()
-            })
-            .with(Ground {})
-            .with(BoundingBox(ground_box))
-            .with(Velocity(None));
-    }
+    // {
+    //     let crate_box = Vec2::new(50.0, 50.0);
 
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
-
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(51.0, 50.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
-
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
-
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(100.0, 0.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
-
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
-
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-100.0, 0.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
-
-    {
-        let crate_box = Vec2::new(50.0, 50.0);
-
-        commands
-            .spawn(SpriteBundle {
-                material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
-                transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
-                sprite: Sprite::new(crate_box),
-                ..Default::default()
-            })
-            .with(Crate {})
-            .with(BoundingBox(crate_box))
-            .with(IntrinsicVelocity(None))
-            .with(Velocity(None));
-    }
+    //     commands
+    //         .spawn(SpriteBundle {
+    //             material: materials.add(Color::rgb(1.0, 0.5, 1.0).into()),
+    //             transform: Transform::from_translation(Vec3::new(-100.0, 0.0, 1.0)),
+    //             sprite: Sprite::new(crate_box),
+    //             ..Default::default()
+    //         })
+    //         .with(Crate {})
+    //         .with(BoundingBox(crate_box))
+    //         .with(IntrinsicVelocity(None))
+    //         .with(Velocity(None));
+    // }
 }
 
 fn steps(
@@ -400,8 +381,8 @@ fn is_beside(
     let right_left = right_transform.translation.x - right_box.0.x / 2.0;
 
     (left_right - right_left).abs() < std::f32::EPSILON
-        && ((left_bottom <= right_bottom && right_bottom < left_top)
-            || (right_bottom <= left_bottom && left_bottom < right_top))
+        && ((left_bottom <= right_bottom && right_bottom <= left_top)
+            || (right_bottom <= left_bottom && left_bottom <= right_top))
 }
 
 fn reset_intrinsic_velocity(mut query: Query<&mut IntrinsicVelocity>) {
@@ -419,8 +400,8 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
 fn build_adjacency_graph(
     mut adjacency_graph: ResMut<AdjacencyGraph>,
 
-    left_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
-    right_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Step>)>,
+    right_query: Query<(Entity, &Transform, &BoundingBox), ()>,
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     steps: Query<(&Step, Entity)>,
@@ -524,7 +505,6 @@ fn velocity_propagation(
     let mut propagation_results = HashMap::new();
 
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
-
         let mut already_visited = HashSet::new();
 
         propagate_velocity(
@@ -669,11 +649,10 @@ fn propagate_velocity(
                 if proposed_y < 0.0 {
                     let mut y_blocked_down = false;
 
-
                     if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
                         for bottom_entity in bottoms {
-                            y_blocked_down =
-                            y_blocked_down | test_down(*bottom_entity, adjacency_graph, grounds);
+                            y_blocked_down = y_blocked_down
+                                | test_down(*bottom_entity, adjacency_graph, grounds);
                         }
                     }
 
