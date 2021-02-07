@@ -53,7 +53,7 @@ enum Arm {
     D,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 struct Velocity(Option<Vec2>);
 
 struct IntrinsicVelocity(Option<Propagation>);
@@ -1228,6 +1228,86 @@ mod tests {
                 (|crates: Query<(&Crate, &Velocity)>| {
                     for (_crate, velocity) in crates.iter() {
                         assert_eq!(velocity.0, Some(Vec2::new(-1.0, -1.0)));
+                    }
+                })
+                .system(),
+            ],
+        );
+    }
+
+    #[test]
+    fn complex_fall() {
+        struct A;
+        struct B;
+        struct C;
+
+        helper(
+            |commands, resources| {
+                let ground_box = Vec2::new(50.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
+
+                let crate_box = Vec2::new(50.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None))
+                    .with(A);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None))
+                    .with(B);
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None))
+                    .with(C);
+            },
+            vec![
+                (|crates: Query<(&A, &Velocity)>| {
+                    for (_marker, velocity) in crates.iter() {
+                        assert_eq!(*velocity, Velocity(None));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&B, &Velocity)>| {
+                    for (_marker, velocity) in crates.iter() {
+                        assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&C, &Velocity)>| {
+                    for (_marker, velocity) in crates.iter() {
+                        assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 0.0))));
                     }
                 })
                 .system(),
