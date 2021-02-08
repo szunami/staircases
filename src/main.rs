@@ -1242,7 +1242,7 @@ mod tests {
         struct C;
 
         helper(
-            |commands, resources| {
+            |commands, _resources| {
                 let ground_box = Vec2::new(50.0, 50.0);
                 commands
                     .spawn(SpriteBundle {
