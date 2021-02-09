@@ -153,6 +153,18 @@ fn setup(
                 .with(IntrinsicVelocity(None));
         }
     }
+
+    let ground_box = Vec2::new(300.0, 50.0);
+
+    commands
+        .spawn(SpriteBundle {
+            sprite: Sprite::new(ground_box),
+
+            transform: Transform::from_translation(Vec3::new(0.0, -200.0, 0.0)),
+            ..Default::default()
+        })
+        .with(BoundingBox(ground_box))
+        .with(Ground);
 }
 
 fn steps(
@@ -163,20 +175,19 @@ fn steps(
     let mut result = vec![];
 
     // A
-    // result.push((
-    //     Transform::from_translation(Vec3::new(
-    //         escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
-    //         escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
-    //         0.0,
-    //     )),
-    //     Arm::A,
-    // ));
+    result.push((
+        Transform::from_translation(Vec3::new(
+            escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
+            escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
+            0.0,
+        )),
+        Arm::A,
+    ));
 
-    // // B
-    // let n = (escalator_box.0.y / step.0.y) as i32;
+    // B
+    let n = (escalator_box.0.y / step.0.y) as i32;
 
-    // for index in 0..n - 2 {
-    for index in 0..1 {
+    for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
                 escalator_transform.translation.x - escalator_box.0.x / 2.0
@@ -191,32 +202,32 @@ fn steps(
         ))
     }
 
-    // // C
-    // result.push((
-    //     Transform::from_translation(Vec3::new(
-    //         escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
-    //         escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
-    //         0.0,
-    //     )),
-    //     Arm::C,
-    // ));
+    // C
+    result.push((
+        Transform::from_translation(Vec3::new(
+            escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
+            escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
+            0.0,
+        )),
+        Arm::C,
+    ));
 
-    // // D
-    // for index in 0..n - 1 {
-    //     result.push((
-    //         Transform::from_translation(Vec3::new(
-    //             escalator_transform.translation.x + escalator_box.0.x / 2.0
-    //                 - step.0.x / 2.0
-    //                 - (index as f32) * step.0.x,
-    //             escalator_transform.translation.y
-    //                 + -escalator_box.0.y / 2.0
-    //                 + (step.0.y) / 2.0
-    //                 + (index as f32) * step.0.y,
-    //             0.0,
-    //         )),
-    //         Arm::D,
-    //     ));
-    // }
+    // D
+    for index in 0..n - 1 {
+        result.push((
+            Transform::from_translation(Vec3::new(
+                escalator_transform.translation.x + escalator_box.0.x / 2.0
+                    - step.0.x / 2.0
+                    - (index as f32) * step.0.x,
+                escalator_transform.translation.y
+                    + -escalator_box.0.y / 2.0
+                    + (step.0.y) / 2.0
+                    + (index as f32) * step.0.y,
+                0.0,
+            )),
+            Arm::D,
+        ));
+    }
     result
 }
 
@@ -662,7 +673,6 @@ fn propagate_velocity(
                     (Some(y), None) => Some(y),
                     (Some(new_y), Some(old_y)) => Some(new_y + old_y),
                 };
-
 
                 // we probably actually want to check to see if the step has propagated, and add escalator + that?
                 // or maybe just look up the step now?

@@ -1,3 +1,8 @@
+## 20200208
+---
+implemented custom logic for escalator propagation. It is ugly, but it works well enough for now, maybe?
+
+
 20200207
 
 test_down fixes weird falling edge case! seems reasonable
