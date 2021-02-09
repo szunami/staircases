@@ -107,40 +107,24 @@ fn setup(
     commands
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
+
     let walk_handle = asset_server.load("textures/base.png");
     let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
 
     let walk_handle = texture_atlases.add(walk_atlas);
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::zero());
+        let escalator_transform = Transform::default();
+        let escalator_box = Vec2::new(200.0, 200.0);
+        let escalator = spawn_escalator(
+            commands,
+            walk_handle,
+            escalator_transform,
+            Vec2::new(200.0, 200.0),
+        );
 
-        let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
-
-        let escalator = commands
-            .spawn(SpriteSheetBundle {
-                sprite: TextureAtlasSprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                    ..TextureAtlasSprite::default()
-                },
-
-                visible: Visible {
-                    is_visible: true,
-                    is_transparent: true,
-                },
-                texture_atlas: walk_handle.clone_weak(),
-                transform: escalator_transform,
-                ..Default::default()
-            })
-            .with(Escalator {})
-            .with(Velocity(None))
-            .with(IntrinsicVelocity(None))
-            .with(escalator_box.clone())
-            .current_entity()
-            .expect("Parent");
-
-        let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-        for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box) {
+        let step_box = Vec2::new(50.0, 50.0);
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
             commands
                 .spawn(SpriteBundle {
                     material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
@@ -168,35 +152,59 @@ fn setup(
         .with(Ground);
 }
 
-fn steps(
-    escalator_transform: &Transform,
-    escalator_box: &BoundingBox,
-    step: &BoundingBox,
-) -> Vec<(Transform, Arm)> {
+fn spawn_escalator(
+    commands: &mut Commands,
+    texture: Handle<TextureAtlas>,
+    transform: Transform,
+    size: Vec2,
+) -> Entity {
+    commands
+        .spawn(SpriteSheetBundle {
+            sprite: TextureAtlasSprite {
+                color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                ..TextureAtlasSprite::default()
+            },
+            visible: Visible {
+                is_visible: true,
+                is_transparent: true,
+            },
+            texture_atlas: texture.clone_weak(),
+            transform: transform,
+            ..Default::default()
+        })
+        .with(Escalator {})
+        .with(Velocity(None))
+        .with(IntrinsicVelocity(None))
+        .with(BoundingBox(size))
+        .current_entity()
+        .expect("escalator")
+}
+
+fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
 
     // A
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x - escalator_box.0.x / 2.0 + step.0.x / 2.0,
-            escalator_transform.translation.y + escalator_box.0.y / 2.0 - step.0.y / 2.0,
+            escalator_transform.translation.x - escalator_box.x / 2.0 + step.x / 2.0,
+            escalator_transform.translation.y + escalator_box.y / 2.0 - step.y / 2.0,
             0.0,
         )),
         Arm::A,
     ));
 
     // B
-    let n = (escalator_box.0.y / step.0.y) as i32;
+    let n = (escalator_box.y / step.y) as i32;
 
     for index in 0..n - 2 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x - escalator_box.0.x / 2.0
-                    + step.0.x / 2.0
-                    + index as f32 * step.0.x,
-                escalator_transform.translation.y + escalator_box.0.y / 2.0
-                    - 3.0 * step.0.y / 2.0
-                    - index as f32 * step.0.y,
+                escalator_transform.translation.x - escalator_box.x / 2.0
+                    + step.x / 2.0
+                    + index as f32 * step.x,
+                escalator_transform.translation.y + escalator_box.y / 2.0
+                    - 3.0 * step.y / 2.0
+                    - index as f32 * step.y,
                 0.0,
             )),
             Arm::B,
@@ -206,8 +214,8 @@ fn steps(
     // C
     result.push((
         Transform::from_translation(Vec3::new(
-            escalator_transform.translation.x + escalator_box.0.x / 2.0 - 3.0 * step.0.y / 2.0,
-            escalator_transform.translation.y - escalator_box.0.y / 2.0 + step.0.y / 2.0,
+            escalator_transform.translation.x + escalator_box.x / 2.0 - 3.0 * step.y / 2.0,
+            escalator_transform.translation.y - escalator_box.y / 2.0 + step.y / 2.0,
             0.0,
         )),
         Arm::C,
@@ -217,13 +225,13 @@ fn steps(
     for index in 0..n - 1 {
         result.push((
             Transform::from_translation(Vec3::new(
-                escalator_transform.translation.x + escalator_box.0.x / 2.0
-                    - step.0.x / 2.0
-                    - (index as f32) * step.0.x,
+                escalator_transform.translation.x + escalator_box.x / 2.0
+                    - step.x / 2.0
+                    - (index as f32) * step.x,
                 escalator_transform.translation.y
-                    + -escalator_box.0.y / 2.0
-                    + (step.0.y) / 2.0
-                    + (index as f32) * step.0.y,
+                    + -escalator_box.y / 2.0
+                    + (step.y) / 2.0
+                    + (index as f32) * step.y,
                 0.0,
             )),
             Arm::D,
