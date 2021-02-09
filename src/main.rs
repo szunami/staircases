@@ -338,11 +338,14 @@ fn player_intrinsic_velocity(
         }
 
         let y_velocity = match adjacency_graph.bottoms.get(&entity) {
-            Some(_) => 0.0,
-            None => -1.0,
+            Some(_) => None,
+            None => Some(-1.0),
         };
 
-        *velocity = IntrinsicVelocity(Some(Propagation::new(x_velocity, y_velocity)));
+        *velocity = IntrinsicVelocity(Some(Propagation {
+            x: x_velocity,
+            y: y_velocity,
+        }));
     }
 }
 
