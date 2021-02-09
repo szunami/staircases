@@ -1536,6 +1536,58 @@ mod tests {
     }
 
     #[test]
+    fn player_atop_escalator_can_move() {
+        helper(
+            |commands, resources| {
+                let escalator_transform = Transform::from_translation(Vec3::zero());
+                let escalator_box = Vec2::new(200.0, 200.0);
+
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
+
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
+                }
+
+                spawn_ground(
+                    commands,
+                    Vec2::new(300.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                );
+
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+                );
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::D);
+                resources.insert(input)
+            },
+            vec![(|steps: Query<(&Player, &Velocity)>| {
+                for (_step, velocity) in steps.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
     fn falling_escalator() {
         helper(
             |commands, _resources| {
