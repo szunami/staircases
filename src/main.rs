@@ -132,7 +132,7 @@ fn setup(
                     sprite: Sprite::new(Vec2::new(50.0, 50.0)),
                     ..Default::default()
                 })
-                .with(step_box.clone())
+                .with(BoundingBox(step_box.clone()))
                 .with(Step { arm, escalator })
                 .with(Velocity(None))
                 .with(IntrinsicVelocity(None));
@@ -493,8 +493,6 @@ fn velocity_propagation(
     }
 
     intrinsic_velocity_sources.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("sort velocity"));
-
-    dbg!(intrinsic_velocity_sources.clone());
 
     let mut propagation_results = HashMap::new();
 
@@ -1348,7 +1346,7 @@ mod tests {
             |commands, _resources| {
                 let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-                let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+                let escalator_box = Vec2::new(200.0, 200.0);
 
                 let escalator = commands
                     .spawn(SpriteSheetBundle {
@@ -1371,8 +1369,8 @@ mod tests {
                     .current_entity()
                     .expect("Parent");
 
-                let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-                for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box)
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
                     .iter()
                     .take(1)
                 {
@@ -1418,7 +1416,7 @@ mod tests {
             |commands, _resources| {
                 let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-                let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+                let escalator_box = Vec2::new(200.0, 200.0);
 
                 let escalator = commands
                     .spawn(SpriteSheetBundle {
@@ -1437,12 +1435,12 @@ mod tests {
                     .with(Escalator {})
                     .with(Velocity(None))
                     .with(IntrinsicVelocity(None))
-                    .with(escalator_box.clone())
+                    .with(BoundingBox(escalator_box.clone()))
                     .current_entity()
                     .expect("Parent");
 
-                let step_box = BoundingBox(Vec2::new(50.0, 50.0));
-                for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box)
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
                     .iter()
                     .take(1)
                 {
@@ -1460,8 +1458,6 @@ mod tests {
                         .with(Velocity(None))
                         .with(IntrinsicVelocity(None));
                 }
-
-                let ground_box = Vec2::new(300.0, 50.0);
             },
             vec![(|steps: Query<(&Step, &Velocity)>| {
                 for (_step, velocity) in steps.iter() {
