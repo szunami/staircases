@@ -127,7 +127,7 @@ fn setup(
         for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
             spawn_step(
                 commands,
-                &mut materials,
+                materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
                 escalator,
                 step_transform,
                 step_box,
@@ -179,7 +179,7 @@ fn spawn_escalator(
 
 fn spawn_step(
     commands: &mut Commands,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
+    material: Handle<ColorMaterial>,
     escalator: Entity,
     transform: Transform,
     size: Vec2,
@@ -187,9 +187,9 @@ fn spawn_step(
 ) {
     commands
         .spawn(SpriteBundle {
-            material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-            transform: transform,
-            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            material,
+            transform,
+            sprite: Sprite::new(size),
             ..Default::default()
         })
         .with(BoundingBox(size))
@@ -1362,9 +1362,15 @@ mod tests {
     fn grounded_escalator_test() {
         helper(
             |commands, _resources| {
-                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
-
+                let escalator_transform = Transform::from_translation(Vec3::zero());
                 let escalator_box = Vec2::new(200.0, 200.0);
+
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
 
                 let escalator = commands
                     .spawn(SpriteSheetBundle {
@@ -1392,6 +1398,15 @@ mod tests {
                     .iter()
                     .take(1)
                 {
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        *step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
+
                     commands
                         .spawn(SpriteBundle {
                             transform: *step_transform,
