@@ -14,6 +14,8 @@ player can't move if atop escalator. I think this is b/c player iv is set to 0, 
 
 Add some unit tests and fix some stuff :)
 
+Ok so: falling staircases, what's up with that.
+
 20200205
 
 current bug: player floats for one frame as staircase transitions down
