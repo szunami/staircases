@@ -46,6 +46,7 @@ struct Step {
     escalator: Entity,
 }
 
+#[derive(Clone)]
 enum Arm {
     A,
     B,
@@ -112,7 +113,7 @@ fn setup(
     let walk_handle = texture_atlases.add(walk_atlas);
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::new(-100.0, -25.0, 0.0));
+        let escalator_transform = Transform::from_translation(Vec3::zero());
 
         let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
 
@@ -160,7 +161,7 @@ fn setup(
         .spawn(SpriteBundle {
             sprite: Sprite::new(ground_box),
 
-            transform: Transform::from_translation(Vec3::new(0.0, -200.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
             ..Default::default()
         })
         .with(BoundingBox(ground_box))
@@ -1330,6 +1331,136 @@ mod tests {
                 })
                 .system(),
             ],
+        );
+    }
+
+    #[test]
+    fn grounded_escalator_test() {
+        helper(
+            |commands, _resources| {
+                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+
+                let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+
+                let escalator = commands
+                    .spawn(SpriteSheetBundle {
+                        sprite: TextureAtlasSprite {
+                            color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                            ..TextureAtlasSprite::default()
+                        },
+
+                        visible: Visible {
+                            is_visible: true,
+                            is_transparent: true,
+                        },
+                        transform: escalator_transform,
+                        ..Default::default()
+                    })
+                    .with(Escalator {})
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None))
+                    .with(escalator_box.clone())
+                    .current_entity()
+                    .expect("Parent");
+
+                let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+                for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box)
+                    .iter()
+                    .take(1)
+                {
+                    commands
+                        .spawn(SpriteBundle {
+                            transform: *step_transform,
+                            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                            ..Default::default()
+                        })
+                        .with(step_box.clone())
+                        .with(Step {
+                            arm: arm.clone(),
+                            escalator,
+                        })
+                        .with(Velocity(None))
+                        .with(IntrinsicVelocity(None));
+                }
+
+                let ground_box = Vec2::new(300.0, 50.0);
+
+                commands
+                    .spawn(SpriteBundle {
+                        sprite: Sprite::new(ground_box),
+
+                        transform: Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                        ..Default::default()
+                    })
+                    .with(BoundingBox(ground_box))
+                    .with(Ground);
+            },
+            vec![(|steps: Query<(&Step, &Velocity)>| {
+                for (_step, velocity) in steps.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    fn falling_escalator() {
+        helper(
+            |commands, _resources| {
+                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+
+                let escalator_box = BoundingBox(Vec2::new(200.0, 200.0));
+
+                let escalator = commands
+                    .spawn(SpriteSheetBundle {
+                        sprite: TextureAtlasSprite {
+                            color: Color::rgba(1.0, 1.0, 1.0, 0.5),
+                            ..TextureAtlasSprite::default()
+                        },
+
+                        visible: Visible {
+                            is_visible: true,
+                            is_transparent: true,
+                        },
+                        transform: escalator_transform,
+                        ..Default::default()
+                    })
+                    .with(Escalator {})
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None))
+                    .with(escalator_box.clone())
+                    .current_entity()
+                    .expect("Parent");
+
+                let step_box = BoundingBox(Vec2::new(50.0, 50.0));
+                for (step_transform, arm) in steps(&escalator_transform, &escalator_box, &step_box)
+                    .iter()
+                    .take(1)
+                {
+                    commands
+                        .spawn(SpriteBundle {
+                            transform: *step_transform,
+                            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                            ..Default::default()
+                        })
+                        .with(step_box.clone())
+                        .with(Step {
+                            arm: arm.clone(),
+                            escalator,
+                        })
+                        .with(Velocity(None))
+                        .with(IntrinsicVelocity(None));
+                }
+
+                let ground_box = Vec2::new(300.0, 50.0);
+            },
+            vec![(|steps: Query<(&Step, &Velocity)>| {
+                for (_step, velocity) in steps.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
+                }
+            })
+            .system()],
         );
     }
 }
