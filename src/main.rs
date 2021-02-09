@@ -110,7 +110,6 @@ fn setup(
 
     let walk_handle = asset_server.load("textures/base.png");
     let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
-
     let walk_handle = texture_atlases.add(walk_atlas);
 
     {
@@ -136,17 +135,11 @@ fn setup(
         }
     }
 
-    let ground_box = Vec2::new(300.0, 50.0);
-
-    commands
-        .spawn(SpriteBundle {
-            sprite: Sprite::new(ground_box),
-
-            transform: Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-            ..Default::default()
-        })
-        .with(BoundingBox(ground_box))
-        .with(Ground);
+    spawn_ground(
+        commands,
+        Vec2::new(300.0, 50.0),
+        Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    );
 }
 
 fn spawn_escalator(
@@ -196,6 +189,17 @@ fn spawn_step(
         .with(Step { arm, escalator })
         .with(Velocity(None))
         .with(IntrinsicVelocity(None));
+}
+
+fn spawn_ground(commands: &mut Commands, ground_box: Vec2, transform: Transform) {
+    commands
+        .spawn(SpriteBundle {
+            sprite: Sprite::new(ground_box),
+            transform,
+            ..Default::default()
+        })
+        .with(BoundingBox(ground_box))
+        .with(Ground);
 }
 
 fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
