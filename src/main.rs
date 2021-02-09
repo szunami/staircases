@@ -108,9 +108,16 @@ fn setup(
         .spawn(Camera2dBundle::default())
         .spawn(CameraUiBundle::default());
 
-    let walk_handle = asset_server.load("textures/base.png");
-    let walk_atlas = TextureAtlas::from_grid(walk_handle, Vec2::new(200.0, 200.0), 1, 1);
-    let walk_handle = texture_atlases.add(walk_atlas);
+    let escalator_base = asset_server.load("textures/base.png");
+    let escalator_atlas = TextureAtlas::from_grid(escalator_base, Vec2::new(200.0, 200.0), 1, 1);
+
+    let escalator_handle = texture_atlases.add(escalator_atlas);
+    let player_handle =
+        materials.add(Color::rgb(115.0 / 255.0, 190.0 / 255.0, 211.0 / 255.0).into());
+    let crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
+    let ground_handle = materials.add(Color::rgb(87.0 / 
+        255.0, 114.0 / 255.0, 119.0 / 255.0).into());
+    let step_handle = materials.add(Color::rgb(168.0     / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     // {
     //     let escalator_transform = Transform::default();
@@ -153,7 +160,7 @@ fn setup(
 
     let escalator = spawn_escalator(
         commands,
-        Handle::default(),
+        escalator_handle.into(),
         escalator_transform,
         escalator_box,
     );
@@ -162,7 +169,7 @@ fn setup(
     for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
         spawn_step(
             commands,
-            Handle::default(),
+            step_handle.clone_weak(),
             escalator,
             step_transform,
             step_box,
@@ -172,13 +179,14 @@ fn setup(
 
     spawn_ground(
         commands,
+        ground_handle,
         Vec2::new(300.0, 50.0),
         Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
     );
 
     spawn_player(
         commands,
-        Handle::default(),
+        player_handle,
         Vec2::new(50.0, 50.0),
         Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
     );
@@ -233,10 +241,16 @@ fn spawn_step(
         .with(IntrinsicVelocity(None));
 }
 
-fn spawn_ground(commands: &mut Commands, ground_box: Vec2, transform: Transform) {
+fn spawn_ground(
+    commands: &mut Commands,
+    material: Handle<ColorMaterial>,
+    ground_box: Vec2,
+    transform: Transform,
+) {
     commands
         .spawn(SpriteBundle {
             sprite: Sprite::new(ground_box),
+            material,
             transform,
             ..Default::default()
         })
@@ -1518,6 +1532,7 @@ mod tests {
 
                 spawn_ground(
                     commands,
+                    Handle::default(),
                     Vec2::new(300.0, 50.0),
                     Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
                 );
@@ -1539,7 +1554,7 @@ mod tests {
     }
 
     #[test]
-    fn player_atop_escalator_can_move() {
+    fn player_atop_escalator_can_move_right() {
         helper(
             |commands, resources| {
                 let escalator_transform = Transform::from_translation(Vec3::zero());
@@ -1566,6 +1581,7 @@ mod tests {
 
                 spawn_ground(
                     commands,
+                    Handle::default(),
                     Vec2::new(300.0, 50.0),
                     Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
                 );
@@ -1584,6 +1600,59 @@ mod tests {
             vec![(|steps: Query<(&Player, &Velocity)>| {
                 for (_step, velocity) in steps.iter() {
                     assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    fn player_atop_escalator_cannot_move_left() {
+        helper(
+            |commands, resources| {
+                let escalator_transform = Transform::from_translation(Vec3::zero());
+                let escalator_box = Vec2::new(200.0, 200.0);
+
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
+
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
+                }
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(300.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                );
+
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+                );
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::A);
+                resources.insert(input)
+            },
+            vec![(|steps: Query<(&Player, &Velocity)>| {
+                for (_step, velocity) in steps.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
                 }
             })
             .system()],
