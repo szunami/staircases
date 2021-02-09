@@ -125,17 +125,14 @@ fn setup(
 
         let step_box = Vec2::new(50.0, 50.0);
         for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-            commands
-                .spawn(SpriteBundle {
-                    material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
-                    transform: step_transform,
-                    sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                    ..Default::default()
-                })
-                .with(BoundingBox(step_box.clone()))
-                .with(Step { arm, escalator })
-                .with(Velocity(None))
-                .with(IntrinsicVelocity(None));
+            spawn_step(
+                commands,
+                &mut materials,
+                escalator,
+                step_transform,
+                step_box,
+                arm,
+            );
         }
     }
 
@@ -178,6 +175,27 @@ fn spawn_escalator(
         .with(BoundingBox(size))
         .current_entity()
         .expect("escalator")
+}
+
+fn spawn_step(
+    commands: &mut Commands,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    escalator: Entity,
+    transform: Transform,
+    size: Vec2,
+    arm: Arm,
+) {
+    commands
+        .spawn(SpriteBundle {
+            material: materials.add(Color::rgb(0.5, 0.5, 1.0).into()),
+            transform: transform,
+            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+            ..Default::default()
+        })
+        .with(BoundingBox(size))
+        .with(Step { arm, escalator })
+        .with(Velocity(None))
+        .with(IntrinsicVelocity(None));
 }
 
 fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
@@ -1365,7 +1383,7 @@ mod tests {
                     .with(Escalator {})
                     .with(Velocity(None))
                     .with(IntrinsicVelocity(None))
-                    .with(escalator_box.clone())
+                    .with(BoundingBox(escalator_box.clone()))
                     .current_entity()
                     .expect("Parent");
 
@@ -1380,7 +1398,7 @@ mod tests {
                             sprite: Sprite::new(Vec2::new(50.0, 50.0)),
                             ..Default::default()
                         })
-                        .with(step_box.clone())
+                        .with(BoundingBox(step_box.clone()))
                         .with(Step {
                             arm: arm.clone(),
                             escalator,
