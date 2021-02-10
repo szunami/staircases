@@ -114,6 +114,8 @@ fn setup(
     let escalator_transform = Transform::from_translation(Vec3::zero());
     let escalator_box = Vec2::new(200.0, 200.0);
 
+
+{
     let escalator_transform = Transform::from_translation(Vec3::zero());
     let escalator_box = Vec2::new(200.0, 200.0);
 
@@ -125,19 +127,15 @@ fn setup(
     );
 
     let step_box = Vec2::new(50.0, 50.0);
-    for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-        .iter()
-        .take(1)
-    {
-        let a = spawn_step(
+    for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+        spawn_step(
             commands,
             Handle::default(),
             escalator,
-            *step_transform,
+            step_transform,
             step_box,
             arm.clone(),
         );
-
     }
 
     spawn_ground(
@@ -455,7 +453,7 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
 fn build_adjacency_graph(
     mut adjacency_graph: ResMut<AdjacencyGraph>,
 
-    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Step>)>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
     right_query: Query<(Entity, &Transform, &BoundingBox), ()>,
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
@@ -605,8 +603,6 @@ fn propagate_velocity(
 
     propagation_results: &mut HashMap<Entity, Propagation>,
 ) {
-    if propagation_velocity.y.is_some() && propagation_velocity.y.unwrap() != 0.0 {}
-
     if grounds.get(entity).is_ok() {
         return;
     }
@@ -758,9 +754,8 @@ fn propagate_velocity(
                 );
             }
             None => {
-                // surprising
-
-                propagation_results.insert(entity, propagation_velocity.clone());
+                let step_iv = intrinsic_velocities.get(entity).expect("step iv lookup").0.clone().unwrap();
+                propagation_results.insert(entity, step_iv.clone());
             }
         }
     } else {
