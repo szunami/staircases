@@ -114,6 +114,9 @@ fn setup(
     let escalator_transform = Transform::from_translation(Vec3::zero());
     let escalator_box = Vec2::new(200.0, 200.0);
 
+    let escalator_transform = Transform::from_translation(Vec3::zero());
+    let escalator_box = Vec2::new(200.0, 200.0);
+
     let escalator = spawn_escalator(
         commands,
         Handle::default(),
@@ -122,15 +125,19 @@ fn setup(
     );
 
     let step_box = Vec2::new(50.0, 50.0);
-    for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-        spawn_step(
+    for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+        .iter()
+        .take(1)
+    {
+        let a = spawn_step(
             commands,
             Handle::default(),
             escalator,
-            step_transform,
+            *step_transform,
             step_box,
             arm.clone(),
         );
+
     }
 
     spawn_ground(
@@ -745,7 +752,7 @@ fn propagate_velocity(
                 propagation_results.insert(
                     entity,
                     Propagation {
-                        x: step_iv.0.clone().unwrap().x + propagation_velocity.x,
+                        x: step_iv.0.clone().unwrap().x + escalator_result.x,
                         y: y,
                     },
                 );
