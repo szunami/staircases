@@ -138,52 +138,30 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
-
-                let ground_box = Vec2::new(500.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
-
-                let crate_box = Vec2::new(50.0, 50.0);
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
+        spawn_player(
+            commands,
+            player_handle,
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+        );
+        spawn_ground(
+            commands,
+            Handle::default(),
+            Vec2::new(500.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+        );
+        spawn_crate(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+        );
+        spawn_crate(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+        );
     }
 }
 fn spawn_escalator(
@@ -271,6 +249,24 @@ fn spawn_player(
         .with(BoundingBox(size))
         .with(Velocity(None))
         .with(IntrinsicVelocity(None));
+}
+
+fn spawn_crate(
+    commands: &mut Commands,
+    material: Handle<ColorMaterial>,
+    size: Vec2,
+    transform: Transform,
+) {
+    commands
+        .spawn(SpriteBundle {
+            transform,
+            sprite: Sprite::new(size),
+            ..Default::default()
+        })
+        .with(Crate {})
+        .with(BoundingBox(size))
+        .with(IntrinsicVelocity(None))
+        .with(Velocity(None));
 }
 
 fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
@@ -693,14 +689,13 @@ fn propagate_velocity(
     if intrinsic_velocity.y < 0.0 {
         if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
             for bottom_entity in bottoms {
-                y_blocked =
-                y_blocked | test_down(*bottom_entity, adjacency_graph, grounds);
+                y_blocked = y_blocked | test_down(*bottom_entity, adjacency_graph, grounds);
             }
         }
     }
 
     if y_blocked {
-        intrinsic_velocity.y = 0.0
+        intrinsic_velocity.y = 0.0;
     }
 
     // handle self!
@@ -723,10 +718,13 @@ fn propagate_velocity(
                 );
             }
             None => {
-                propagation_results.insert(entity, Propagation {
-                    intrinsic: Some(intrinsic_velocity),
-                    ..Propagation::default()
-                });
+                propagation_results.insert(
+                    entity,
+                    Propagation {
+                        intrinsic: Some(intrinsic_velocity),
+                        ..Propagation::default()
+                    },
+                );
             }
         }
     } else {
@@ -748,6 +746,37 @@ fn propagate_velocity(
 
     //push!
 
+    if intrinsic_velocity.x > 0.0 {
+        if let Some(rights) = adjacency_graph.rights.get(&entity) {
+            for right_entity in rights {
+                push(
+                    intrinsic_velocity.x,
+                    *right_entity,
+                    adjacency_graph,
+                    already_visited,
+                    propagation_results,
+                    grounds,
+                );
+            }
+        }
+    }
+
+    if intrinsic_velocity.x < 0.0 {
+        if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
+            for left_entity in lefts {
+
+                push(
+                    intrinsic_velocity.x,
+                    *left_entity,
+                    adjacency_graph,
+                    already_visited,
+                    propagation_results,
+                    grounds,
+                );
+            }
+        }
+    }
+
     // if let Some(tops) = adjacency_graph.tops.get(&entity) {
     //     for top_entity in tops {
     //         // carry!
@@ -764,7 +793,87 @@ fn propagate_velocity(
     //     }
     // }
 
-    // handle 
+    // handle
+}
+
+// set x velocity, possibly checking for test (?)
+// carry
+fn push(
+    push_x: f32,
+    entity: Entity,
+    adjacency_graph: &AdjacencyGraph,
+    already_visited: &mut HashSet<Entity>,
+    propagation_results: &mut HashMap<Entity, Propagation>,
+    grounds: &Query<&Ground>,
+) {
+    if grounds.get(entity).is_ok() {
+        return;
+    }
+    if already_visited.contains(&entity) {
+        return;
+    }
+    already_visited.insert(entity);
+
+    // TODO: test?
+    match propagation_results.entry(entity) {
+        Entry::Occupied(mut existing_result) => {
+            let existing_result = existing_result.get_mut();
+            match existing_result.push {
+                Some(existing_push) => {
+                    existing_result.push = Some(max_abs(existing_push, push_x));
+                }
+                None => {
+                    existing_result.push = Some(push_x);
+                }
+            }
+        }
+        Entry::Vacant(vacancy) => {
+            vacancy.insert(Propagation {
+                push: Some(push_x),
+                ..Propagation::default()
+            });
+        }
+    }
+
+    // need to recursively push + carry here
+    if push_x > 0.0 {
+        if let Some(rights) = adjacency_graph.rights.get(&entity) {
+            for right_entity in rights {
+                push(
+                    push_x,
+                    *right_entity,
+                    adjacency_graph,
+                    already_visited,
+                    propagation_results,
+                    grounds,
+                );
+            }
+        }
+    }
+
+    if push_x < 0.0 {
+        if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
+            for left_entity in lefts {
+
+                push(
+                    push_x,
+                    *left_entity,
+                    adjacency_graph,
+                    already_visited,
+                    propagation_results,
+                    grounds,
+                );
+            }
+        }
+    }
+
+}
+
+fn max_abs(a: f32, b: f32) -> f32 {
+    if a.abs() > b.abs() {
+        return a;
+    }
+    b
 }
 
 // TODO: Merge test_* into a single fn (?)
@@ -994,52 +1103,30 @@ mod tests {
     fn basic_propagation() {
         helper(
             |commands, resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
-
-                let ground_box = Vec2::new(500.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
-
-                let crate_box = Vec2::new(50.0, 50.0);
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(500.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                );
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(-100.0, 50.0),
+                    Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+                );
 
                 let mut input = Input::<KeyCode>::default();
                 input.press(KeyCode::A);
