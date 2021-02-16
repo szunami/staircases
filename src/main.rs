@@ -61,13 +61,31 @@ struct IntrinsicVelocity(Option<Propagation>);
 
 #[derive(Clone, Debug)]
 struct Propagation {
-    x: f32,
-    y: Option<f32>,
+    push: Option<f32>,
+    carry: Option<Vec2>,
+    intrinsic: Option<Vec2>,
+}
+
+impl Default for Propagation {
+    fn default() -> Self {
+        Propagation {
+            push: None,
+            carry: None,
+            intrinsic: None,
+        }
+    }
 }
 
 impl Propagation {
-    fn new(x: f32, y: f32) -> Propagation {
-        Propagation { x, y: Some(y) }
+    fn to_velocity(&self) -> Velocity {
+        let push_x = self.push.unwrap_or_else(|| 0.0);
+        let carry = self.carry.unwrap_or_else(Vec2::zero);
+        let intrinsic = self.intrinsic.unwrap_or_else(Vec2::zero);
+
+        let result_x = push_x + carry.x + intrinsic.x;
+        let result_y = carry.y + intrinsic.y;
+
+        Velocity(Some(Vec2::new(result_x, result_y)))
     }
 }
 
@@ -111,48 +129,52 @@ fn setup(
     let escalator_base = asset_server.load("textures/base.png");
     let escalator_atlas = TextureAtlas::from_grid(escalator_base, Vec2::new(200.0, 200.0), 1, 1);
 
-    let escalator_transform = Transform::from_translation(Vec3::zero());
-    let escalator_box = Vec2::new(200.0, 200.0);
+    let escalator_handle = texture_atlases.add(escalator_atlas);
+    let player_handle =
+        materials.add(Color::rgb(115.0 / 255.0, 190.0 / 255.0, 211.0 / 255.0).into());
+    let crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
+    let ground_handle =
+        materials.add(Color::rgb(87.0 / 255.0, 114.0 / 255.0, 119.0 / 255.0).into());
+    let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
+    {
+        let escalator_transform = Transform::from_translation(Vec3::zero());
+        let escalator_box = Vec2::new(200.0, 200.0);
 
-{
-    let escalator_transform = Transform::from_translation(Vec3::zero());
-    let escalator_box = Vec2::new(200.0, 200.0);
+        let escalator = spawn_escalator(
+            commands,
+            escalator_handle,
+            escalator_transform,
+            escalator_box,
+        );
 
-    let escalator = spawn_escalator(
-        commands,
-        Handle::default(),
-        escalator_transform,
-        escalator_box,
-    );
+        let step_box = Vec2::new(50.0, 50.0);
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+            spawn_step(
+                commands,
+                step_handle.clone_weak(),
+                escalator,
+                step_transform,
+                step_box,
+                arm.clone(),
+            );
+        }
 
-    let step_box = Vec2::new(50.0, 50.0);
-    for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-        spawn_step(
+        spawn_ground(
             commands,
             Handle::default(),
-            escalator,
-            step_transform,
-            step_box,
-            arm.clone(),
+            Vec2::new(300.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+        );
+
+        spawn_player(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
         );
     }
-
-    spawn_ground(
-        commands,
-        Handle::default(),
-        Vec2::new(300.0, 50.0),
-        Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-    );
-
-    spawn_player(
-        commands,
-        Handle::default(),
-        Vec2::new(50.0, 50.0),
-        Transform::from_translation(Vec3::new(-125.0, -75.0, 0.0)),
-    );
 }
-
 fn spawn_escalator(
     commands: &mut Commands,
     texture: Handle<TextureAtlas>,
@@ -315,13 +337,13 @@ fn player_intrinsic_velocity(
         }
 
         let y_velocity = match adjacency_graph.bottoms.get(&entity) {
-            Some(_) => None,
-            None => Some(-1.0),
+            Some(_) => 0.0,
+            None => -1.0,
         };
 
         *velocity = IntrinsicVelocity(Some(Propagation {
-            x: x_velocity,
-            y: y_velocity,
+            intrinsic: Some(Vec2::new(x_velocity, y_velocity)),
+            ..Propagation::default()
         }));
     }
 }
@@ -330,16 +352,28 @@ fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
     for (step, mut intrinsic_velocity) in query.iter_mut() {
         match step.arm {
             Arm::A => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    intrinsic: Some(Vec2::new(0.0, -1.0)),
+                    ..Propagation::default()
+                }));
             }
             Arm::B => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(1.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    intrinsic: Some(Vec2::new(1.0, -1.0)),
+                    ..Propagation::default()
+                }));
             }
             Arm::C => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(1.0, 0.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    intrinsic: Some(Vec2::new(1.0, 0.0)),
+                    ..Propagation::default()
+                }));
             }
             Arm::D => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(-1.0, 1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    intrinsic: Some(Vec2::new(-1.0, 1.0)),
+                    ..Propagation::default()
+                }));
             }
         }
     }
@@ -520,11 +554,17 @@ fn falling_intrinsic_velocity(
         match adjacency_graph.bottoms.get(&entity) {
             Some(bottoms) => {
                 if bottoms.is_empty() {
-                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
+                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                        intrinsic: Some(Vec2::new(0.0, -1.0)),
+                        ..Propagation::default()
+                    }));
                 }
             }
             None => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation::new(0.0, -1.0)));
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    intrinsic: Some(Vec2::new(0.0, -1.0)),
+                    ..Propagation::default()
+                }));
             }
         }
 
@@ -562,19 +602,19 @@ fn velocity_propagation(
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
         let mut already_visited = HashSet::new();
 
-        propagate_velocity(
-            entity,
-            Propagation {
-                x: intrinsic_velocity.x,
-                y: intrinsic_velocity.y,
-            },
-            &*adjacency_graph,
-            &grounds,
-            &steps,
-            &ivs,
-            &mut already_visited,
-            &mut propagation_results,
-        );
+        // propagate_velocity(
+        //     entity,
+        //     Propagation {
+        //         x: intrinsic_velocity.x,
+        //         y: intrinsic_velocity.y,
+        //     },
+        //     &*adjacency_graph,
+        //     &grounds,
+        //     &steps,
+        //     &ivs,
+        //     &mut already_visited,
+        //     &mut propagation_results,
+        // );
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
@@ -754,7 +794,12 @@ fn propagate_velocity(
                 );
             }
             None => {
-                let step_iv = intrinsic_velocities.get(entity).expect("step iv lookup").0.clone().unwrap();
+                let step_iv = intrinsic_velocities
+                    .get(entity)
+                    .expect("step iv lookup")
+                    .0
+                    .clone()
+                    .unwrap();
                 propagation_results.insert(entity, step_iv.clone());
             }
         }

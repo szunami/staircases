@@ -1,4 +1,23 @@
-## 20200208
+## 20210216
+
+Propagation system rewrite. Store component-wise velocity. Don't worry about min / max for now.
+
+maybe split propagate_velocity into helper fns?
+
+- propagate_intrinsic()
+- push()
+- carry()
+
+What does updating a propagation look like?
+
+for each, do ground checking (?) / clamping (?)
+
+push: take max absolute value of x (?), leave remaining components
+carry: take max value of y, leave other components
+intrinsic: set it to new value. should be unique anyway
+
+
+## 20210208
 ---
 implemented custom logic for escalator propagation. It is ugly, but it works well enough for now, maybe?
 
