@@ -815,6 +815,7 @@ fn push(
     already_visited.insert(entity);
 
     // TODO: test?
+    // TODO: might max_abs persist stale events? probably
     match propagation_results.entry(entity) {
         Entry::Occupied(mut existing_result) => {
             let existing_result = existing_result.get_mut();
@@ -835,7 +836,6 @@ fn push(
         }
     }
 
-    // need to recursively push + carry here
     if push_x > 0.0 {
         if let Some(rights) = adjacency_graph.rights.get(&entity) {
             for right_entity in rights {
@@ -866,6 +866,8 @@ fn push(
             }
         }
     }
+
+    // TODO: carry
 
 }
 
@@ -1124,7 +1126,7 @@ mod tests {
                 spawn_crate(
                     commands,
                     Handle::default(),
-                    Vec2::new(-100.0, 50.0),
+                    Vec2::new(50.0, 50.0),
                     Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
                 );
 
