@@ -764,7 +764,6 @@ fn propagate_velocity(
     if intrinsic_velocity.x < 0.0 {
         if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
             for left_entity in lefts {
-
                 push(
                     intrinsic_velocity.x,
                     *left_entity,
@@ -777,21 +776,18 @@ fn propagate_velocity(
         }
     }
 
-    // if let Some(tops) = adjacency_graph.tops.get(&entity) {
-    //     for top_entity in tops {
-    //         // carry!
-    //         // propagate_velocity(
-    //         //     *top_entity,
-    //         //     propagation_velocity.clone(),
-    //         //     adjacency_graph,
-    //         //     grounds,
-    //         //     steps,
-    //         //     intrinsic_velocities,
-    //         //     already_visited,
-    //         //     propagation_results,
-    //         // );
-    //     }
-    // }
+    if let Some(tops) = adjacency_graph.tops.get(&entity) {
+        for top_entity in tops {
+            carry(
+                intrinsic_velocity,
+                *top_entity,
+                adjacency_graph,
+                already_visited,
+                propagation_results,
+                grounds,
+            );
+        }
+    }
 
     // handle
 }
@@ -854,7 +850,6 @@ fn push(
     if push_x < 0.0 {
         if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
             for left_entity in lefts {
-
                 push(
                     push_x,
                     *left_entity,
@@ -868,7 +863,34 @@ fn push(
     }
 
     // TODO: carry
+}
 
+fn carry(
+    carry_velocity: Vec2,
+    entity: Entity,
+    adjacency_graph: &AdjacencyGraph,
+    already_visited: &mut HashSet<Entity>,
+    propagation_results: &mut HashMap<Entity, Propagation>,
+    grounds: &Query<&Ground>,
+) {
+    // TODO: test?
+    match propagation_results.entry(entity) {
+        Entry::Occupied(mut existing_result) => {
+            let existing_result = existing_result.get_mut();
+            match existing_result.carry {
+                Some(existing_carry) => {
+                    // TODO: maybe recalculate this to make sure things aren't stale?
+                    if carry_velocity.y > existing_carry.y {
+                        existing_result.carry = Some(carry_velocity);
+                    }
+                }
+                None => {
+                    existing_result.carry = Some(carry_velocity);
+                }
+            }
+        }
+        Entry::Vacant(_) => {}
+    }
 }
 
 fn max_abs(a: f32, b: f32) -> f32 {
