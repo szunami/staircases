@@ -138,41 +138,52 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::zero());
-        let escalator_box = Vec2::new(200.0, 200.0);
+        commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
 
-        let escalator = spawn_escalator(
-            commands,
-            escalator_handle,
-            escalator_transform,
-            escalator_box,
-        );
+                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .with(Player {})
+                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
+                    .with(Velocity(None))
+                    .with(IntrinsicVelocity(None));
 
-        let step_box = Vec2::new(50.0, 50.0);
-        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-            spawn_step(
-                commands,
-                step_handle.clone_weak(),
-                escalator,
-                step_transform,
-                step_box,
-                arm.clone(),
-            );
-        }
+                let ground_box = Vec2::new(500.0, 50.0);
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        sprite: Sprite::new(ground_box),
+                        ..Default::default()
+                    })
+                    .with(Ground {})
+                    .with(BoundingBox(ground_box))
+                    .with(Velocity(None));
 
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(300.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-        );
+                let crate_box = Vec2::new(50.0, 50.0);
 
-        spawn_player(
-            commands,
-            Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-        );
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
+
+                commands
+                    .spawn(SpriteBundle {
+                        transform: Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+                        sprite: Sprite::new(crate_box),
+                        ..Default::default()
+                    })
+                    .with(Crate {})
+                    .with(BoundingBox(crate_box))
+                    .with(IntrinsicVelocity(None))
+                    .with(Velocity(None));
     }
 }
 fn spawn_escalator(
@@ -622,8 +633,8 @@ fn velocity_propagation(
     }
 }
 
-// avoid double propagation: add &mut HashSet<Entity>
-
+// set your IV
+// trigger pushes + carries
 fn propagate_velocity(
     entity: Entity,
     adjacency_graph: &AdjacencyGraph,
@@ -654,29 +665,6 @@ fn propagate_velocity(
             for left_entity in left_entities {
                 x_blocked = x_blocked | test_left(*left_entity, adjacency_graph, grounds)
             }
-
-            // if !x_blocked {
-            //     for left_entity in left_entities {
-            //         let x_projection = Propagation {
-            //             x: propagation_velocity.x,
-            //             y: None,
-            //         };
-            //         propagate_velocity(
-            //             *left_entity,
-            //             x_projection,
-            //             adjacency_graph,
-            //             grounds,
-            //             steps,
-            //             intrinsic_velocities,
-            //             already_visited,
-            //             propagation_results,
-            //         )
-            //     }
-            // }
-        }
-
-        if x_blocked {
-            intrinsic_velocity.x = 0.0;
         }
     }
 
@@ -685,65 +673,35 @@ fn propagate_velocity(
             for right_entity in right_entities {
                 x_blocked = x_blocked | test_right(*right_entity, adjacency_graph, grounds)
             }
-            // if !x_blocked {
-            //     for right_entity in right_entities {
-            //         let x_projection = Propagation {
-            //             x: propagation_velocity.x,
-            //             y: None,
-            //         };
-            //         propagate_velocity(
-            //             *right_entity,
-            //             x_projection,
-            //             adjacency_graph,
-            //             grounds,
-            //             steps,
-            //             intrinsic_velocities,
-            //             already_visited,
-            //             propagation_results,
-            //         )
-            //     }
-            // }
-        }
-
-        if x_blocked {
-            intrinsic_velocity.x = 0.0;
         }
     }
 
-    // handle y
-    if intrinsic_velocity.y > 0.0 {
-        let mut y_blocked_up = false;
+    if x_blocked {
+        intrinsic_velocity.x = 0.0;
+    }
 
+    let mut y_blocked = false;
+
+    if intrinsic_velocity.y > 0.0 {
         if let Some(tops) = adjacency_graph.tops.get(&entity) {
             for top_entity in tops {
-                y_blocked_up = y_blocked_up | test_up(*top_entity, adjacency_graph, grounds);
+                y_blocked = y_blocked | test_up(*top_entity, adjacency_graph, grounds);
             }
-        }
-
-        if y_blocked_up {
-            // shouldn't be able to hang from a ground
-            intrinsic_velocity.y = intrinsic_velocity.y.min(0.0);
         }
     }
 
     if intrinsic_velocity.y < 0.0 {
-        let mut y_blocked_down = false;
-
         if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
             for bottom_entity in bottoms {
-                y_blocked_down =
-                    y_blocked_down | test_down(*bottom_entity, adjacency_graph, grounds);
+                y_blocked =
+                y_blocked | test_down(*bottom_entity, adjacency_graph, grounds);
             }
-        }
-
-        if y_blocked_down {
-            // shouldn't be able to hang from a ground
-            intrinsic_velocity.y = intrinsic_velocity.y.max(0.0);
         }
     }
 
-    // need to propagate velocity up, even if we're blocked up
-    // to propagate x velocity
+    if y_blocked {
+        intrinsic_velocity.y = 0.0
+    }
 
     // handle self!
 
@@ -758,19 +716,17 @@ fn propagate_velocity(
                     entity,
                     Propagation {
                         push: None,
+                        // TODO: probably don't do this here
                         carry: Some(escalator_result.to_velocity()),
                         intrinsic: step_iv.0.clone().expect("asdf").intrinsic,
                     },
                 );
             }
             None => {
-                let step_iv = intrinsic_velocities
-                    .get(entity)
-                    .expect("step iv lookup")
-                    .0
-                    .clone()
-                    .unwrap();
-                propagation_results.insert(entity, step_iv.clone());
+                propagation_results.insert(entity, Propagation {
+                    intrinsic: Some(intrinsic_velocity),
+                    ..Propagation::default()
+                });
             }
         }
     } else {
@@ -778,18 +734,19 @@ fn propagate_velocity(
         match propagation_results.entry(entity) {
             // someone propagated here already
             Entry::Occupied(mut existing_result) => {
-            //     let existing_result = existing_result.get_mut();
-            //     existing_result.intrinsic = Some(*intrinsic_velocity);
-
+                let existing_result = existing_result.get_mut();
+                existing_result.intrinsic = Some(intrinsic_velocity);
             }
             Entry::Vacant(vacancy) => {
-            //     vacancy.insert(Propagation {
-            //         intrinsic: Some(*intrinsic_velocity),
-            //         ..Propagation::default()
-            //     });
+                vacancy.insert(Propagation {
+                    intrinsic: Some(intrinsic_velocity),
+                    ..Propagation::default()
+                });
             }
         }
     }
+
+    //push!
 
     // if let Some(tops) = adjacency_graph.tops.get(&entity) {
     //     for top_entity in tops {
