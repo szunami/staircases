@@ -140,27 +140,30 @@ fn setup(
     {
         spawn_player(
             commands,
-            player_handle,
+            Handle::default(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
         );
+
         spawn_ground(
             commands,
             Handle::default(),
             Vec2::new(500.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
         );
+
         spawn_crate(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
         );
+
         spawn_crate(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+            Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
         );
     }
 }
@@ -889,7 +892,12 @@ fn carry(
                 }
             }
         }
-        Entry::Vacant(_) => {}
+        Entry::Vacant(vacancy) => {
+            vacancy.insert(Propagation{
+                carry: Some(carry_velocity),
+                ..Propagation::default()
+            });
+        }
     }
 }
 
@@ -1177,52 +1185,33 @@ mod tests {
     fn double_carry() {
         helper(
             |commands, resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
 
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(500.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
 
-                let ground_box = Vec2::new(500.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                );
 
-                let crate_box = Vec2::new(50.0, 50.0);
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
+                );
 
                 let mut input = Input::<KeyCode>::default();
                 input.press(KeyCode::A);
