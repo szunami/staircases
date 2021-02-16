@@ -77,7 +77,7 @@ impl Default for Propagation {
 }
 
 impl Propagation {
-    fn to_velocity(&self) -> Velocity {
+    fn to_velocity(&self) -> Vec2 {
         let push_x = self.push.unwrap_or_else(|| 0.0);
         let carry = self.carry.unwrap_or_else(Vec2::zero);
         let intrinsic = self.intrinsic.unwrap_or_else(Vec2::zero);
@@ -85,7 +85,7 @@ impl Propagation {
         let result_x = push_x + carry.x + intrinsic.x;
         let result_y = carry.y + intrinsic.y;
 
-        Velocity(Some(Vec2::new(result_x, result_y)))
+        Vec2::new(result_x, result_y)
     }
 }
 
@@ -352,25 +352,25 @@ fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
     for (step, mut intrinsic_velocity) in query.iter_mut() {
         match step.arm {
             Arm::A => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                     intrinsic: Some(Vec2::new(0.0, -1.0)),
                     ..Propagation::default()
                 }));
             }
             Arm::B => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                     intrinsic: Some(Vec2::new(1.0, -1.0)),
                     ..Propagation::default()
                 }));
             }
             Arm::C => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                     intrinsic: Some(Vec2::new(1.0, 0.0)),
                     ..Propagation::default()
                 }));
             }
             Arm::D => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                     intrinsic: Some(Vec2::new(-1.0, 1.0)),
                     ..Propagation::default()
                 }));
@@ -554,14 +554,14 @@ fn falling_intrinsic_velocity(
         match adjacency_graph.bottoms.get(&entity) {
             Some(bottoms) => {
                 if bottoms.is_empty() {
-                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                         intrinsic: Some(Vec2::new(0.0, -1.0)),
                         ..Propagation::default()
                     }));
                 }
             }
             None => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation{
+                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
                     intrinsic: Some(Vec2::new(0.0, -1.0)),
                     ..Propagation::default()
                 }));
@@ -595,36 +595,29 @@ fn velocity_propagation(
         }
     }
 
+    // don't need to sort here i think
     intrinsic_velocity_sources.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("sort velocity"));
 
-    let mut propagation_results = HashMap::new();
+    let mut propagation_results: HashMap<Entity, Propagation> = HashMap::new();
 
     for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
-        let mut already_visited = HashSet::new();
+        let mut already_visited: HashSet<Entity> = HashSet::new();
 
-        // propagate_velocity(
-        //     entity,
-        //     Propagation {
-        //         x: intrinsic_velocity.x,
-        //         y: intrinsic_velocity.y,
-        //     },
-        //     &*adjacency_graph,
-        //     &grounds,
-        //     &steps,
-        //     &ivs,
-        //     &mut already_visited,
-        //     &mut propagation_results,
-        // );
+        propagate_velocity(
+            entity,
+            &*adjacency_graph,
+            &grounds,
+            &steps,
+            intrinsic_velocity.intrinsic.expect("asdf"),
+            &ivs,
+            &mut already_visited,
+            &mut propagation_results,
+        );
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
-        let velocity = match propagation_result.y {
-            Some(y) => Velocity(Some(Vec2::new(propagation_result.x, y))),
-            None => Velocity(Some(Vec2::new(propagation_result.x, 0.0))),
-        };
-
-        if let Err(e) = velocities.set(*entity, velocity) {
-            eprintln!("Error setting velocity: {:?}", e);
+        if let Err(e) = velocities.set(*entity, Velocity(Some(propagation_result.to_velocity()))) {
+            eprint!("Error setting velocity: {:?}", e);
         }
     }
 }
@@ -633,14 +626,13 @@ fn velocity_propagation(
 
 fn propagate_velocity(
     entity: Entity,
-    mut propagation_velocity: Propagation,
     adjacency_graph: &AdjacencyGraph,
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
+    mut intrinsic_velocity: Vec2,
     intrinsic_velocities: &Query<&IntrinsicVelocity>,
 
     already_visited: &mut HashSet<Entity>,
-
     propagation_results: &mut HashMap<Entity, Propagation>,
 ) {
     if grounds.get(entity).is_ok() {
@@ -657,116 +649,103 @@ fn propagate_velocity(
 
     let mut x_blocked = false;
 
-    if propagation_velocity.x < 0.0 {
+    if intrinsic_velocity.x < 0.0 {
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
                 x_blocked = x_blocked | test_left(*left_entity, adjacency_graph, grounds)
             }
 
-            if !x_blocked {
-                for left_entity in left_entities {
-                    let x_projection = Propagation {
-                        x: propagation_velocity.x,
-                        y: None,
-                    };
-
-                    propagate_velocity(
-                        *left_entity,
-                        x_projection,
-                        adjacency_graph,
-                        grounds,
-                        steps,
-                        intrinsic_velocities,
-                        already_visited,
-                        propagation_results,
-                    )
-                }
-            }
+            // if !x_blocked {
+            //     for left_entity in left_entities {
+            //         let x_projection = Propagation {
+            //             x: propagation_velocity.x,
+            //             y: None,
+            //         };
+            //         propagate_velocity(
+            //             *left_entity,
+            //             x_projection,
+            //             adjacency_graph,
+            //             grounds,
+            //             steps,
+            //             intrinsic_velocities,
+            //             already_visited,
+            //             propagation_results,
+            //         )
+            //     }
+            // }
         }
 
         if x_blocked {
-            propagation_velocity.x = 0.0;
+            intrinsic_velocity.x = 0.0;
         }
     }
 
-    if propagation_velocity.x > 0.0 {
+    if intrinsic_velocity.x > 0.0 {
         if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
             for right_entity in right_entities {
                 x_blocked = x_blocked | test_right(*right_entity, adjacency_graph, grounds)
             }
-
-            if !x_blocked {
-                for right_entity in right_entities {
-                    let x_projection = Propagation {
-                        x: propagation_velocity.x,
-                        y: None,
-                    };
-
-                    propagate_velocity(
-                        *right_entity,
-                        x_projection,
-                        adjacency_graph,
-                        grounds,
-                        steps,
-                        intrinsic_velocities,
-                        already_visited,
-                        propagation_results,
-                    )
-                }
-            }
+            // if !x_blocked {
+            //     for right_entity in right_entities {
+            //         let x_projection = Propagation {
+            //             x: propagation_velocity.x,
+            //             y: None,
+            //         };
+            //         propagate_velocity(
+            //             *right_entity,
+            //             x_projection,
+            //             adjacency_graph,
+            //             grounds,
+            //             steps,
+            //             intrinsic_velocities,
+            //             already_visited,
+            //             propagation_results,
+            //         )
+            //     }
+            // }
         }
 
         if x_blocked {
-            propagation_velocity.x = 0.0;
+            intrinsic_velocity.x = 0.0;
         }
     }
 
     // handle y
-    {
-        match propagation_velocity.y {
-            Some(proposed_y) => {
-                if proposed_y > 0.0 {
-                    let mut y_blocked_up = false;
+    if intrinsic_velocity.y > 0.0 {
+        let mut y_blocked_up = false;
 
-                    if let Some(tops) = adjacency_graph.tops.get(&entity) {
-                        for top_entity in tops {
-                            y_blocked_up =
-                                y_blocked_up | test_up(*top_entity, adjacency_graph, grounds);
-                        }
-                    }
-
-                    if y_blocked_up {
-                        // shouldn't be able to hang from a ground
-                        propagation_velocity.y = Some(proposed_y.min(0.0));
-                    }
-                }
-
-                if proposed_y < 0.0 {
-                    let mut y_blocked_down = false;
-
-                    if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
-                        for bottom_entity in bottoms {
-                            y_blocked_down = y_blocked_down
-                                | test_down(*bottom_entity, adjacency_graph, grounds);
-                        }
-                    }
-
-                    if y_blocked_down {
-                        // shouldn't be able to hang from a ground
-                        propagation_velocity.y = Some(proposed_y.max(0.0));
-                    }
-                }
+        if let Some(tops) = adjacency_graph.tops.get(&entity) {
+            for top_entity in tops {
+                y_blocked_up = y_blocked_up | test_up(*top_entity, adjacency_graph, grounds);
             }
-            None => {}
         }
 
-        // need to propagate velocity up, even if we're blocked up
-        // to propagate x velocity
+        if y_blocked_up {
+            // shouldn't be able to hang from a ground
+            intrinsic_velocity.y = intrinsic_velocity.y.min(0.0);
+        }
     }
 
-    // handle self!
+    if intrinsic_velocity.y < 0.0 {
+        let mut y_blocked_down = false;
 
-    // if we're a step, simply add our x, y to escalatory x + y
+        if let Some(bottoms) = adjacency_graph.bottoms.get(&entity) {
+            for bottom_entity in bottoms {
+                y_blocked_down =
+                    y_blocked_down | test_down(*bottom_entity, adjacency_graph, grounds);
+            }
+        }
+
+        if y_blocked_down {
+            // shouldn't be able to hang from a ground
+            intrinsic_velocity.y = intrinsic_velocity.y.max(0.0);
+        }
+    }
+
+    // need to propagate velocity up, even if we're blocked up
+    // to propagate x velocity
+
+    // handle self!
 
     if let Ok(step) = steps.get(entity) {
         let step_iv = intrinsic_velocities.get(entity).expect("step iv lookup");
@@ -775,21 +754,12 @@ fn propagate_velocity(
             Some(escalator_result) => {
                 let escalator_result = escalator_result.clone();
 
-                let y = match (step_iv.0.clone().unwrap().y, escalator_result.y) {
-                    (None, None) => None,
-                    (None, Some(y)) => Some(y),
-                    (Some(y), None) => Some(y),
-                    (Some(new_y), Some(old_y)) => Some(new_y + old_y),
-                };
-
-                // we probably actually want to check to see if the step has propagated, and add escalator + that?
-                // or maybe just look up the step now?
-
                 propagation_results.insert(
                     entity,
                     Propagation {
-                        x: step_iv.0.clone().unwrap().x + escalator_result.x,
-                        y: y,
+                        push: None,
+                        carry: Some(escalator_result.to_velocity()),
+                        intrinsic: step_iv.0.clone().expect("asdf").intrinsic,
                     },
                 );
             }
@@ -804,65 +774,40 @@ fn propagate_velocity(
             }
         }
     } else {
+        // not a step!
         match propagation_results.entry(entity) {
             // someone propagated here already
             Entry::Occupied(mut existing_result) => {
-                let existing_result = existing_result.get_mut();
-                // did they propagate y?
-                match existing_result.y {
-                    Some(existing_y) => {
-                        // yes, if we're bigger we override x and y
-                        match propagation_velocity.y {
-                            Some(new_y) => {
-                                if existing_y < new_y {
-                                    *existing_result = Propagation {
-                                        x: propagation_velocity.x,
-                                        y: propagation_velocity.y,
-                                    };
-                                }
-                            }
-                            None => {
-                                // we don't have y, they do; propagate x only (?)
+            //     let existing_result = existing_result.get_mut();
+            //     existing_result.intrinsic = Some(*intrinsic_velocity);
 
-                                *existing_result = Propagation {
-                                    x: existing_result.x + propagation_velocity.x,
-                                    y: existing_result.y,
-                                }
-                            }
-                        }
-                    }
-                    None => {
-                        // no, we propagate y
-                        *existing_result = Propagation {
-                            x: propagation_velocity.clone().x + existing_result.x,
-                            y: propagation_velocity.clone().y,
-                        };
-                    }
-                }
             }
             Entry::Vacant(vacancy) => {
-                vacancy.insert(Propagation {
-                    x: propagation_velocity.x,
-                    y: propagation_velocity.clone().y,
-                });
+            //     vacancy.insert(Propagation {
+            //         intrinsic: Some(*intrinsic_velocity),
+            //         ..Propagation::default()
+            //     });
             }
         }
     }
 
-    if let Some(tops) = adjacency_graph.tops.get(&entity) {
-        for top_entity in tops {
-            propagate_velocity(
-                *top_entity,
-                propagation_velocity.clone(),
-                adjacency_graph,
-                grounds,
-                steps,
-                intrinsic_velocities,
-                already_visited,
-                propagation_results,
-            );
-        }
-    }
+    // if let Some(tops) = adjacency_graph.tops.get(&entity) {
+    //     for top_entity in tops {
+    //         // carry!
+    //         // propagate_velocity(
+    //         //     *top_entity,
+    //         //     propagation_velocity.clone(),
+    //         //     adjacency_graph,
+    //         //     grounds,
+    //         //     steps,
+    //         //     intrinsic_velocities,
+    //         //     already_visited,
+    //         //     propagation_results,
+    //         // );
+    //     }
+    // }
+
+    // handle 
 }
 
 // TODO: Merge test_* into a single fn (?)
