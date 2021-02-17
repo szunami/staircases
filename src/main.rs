@@ -138,20 +138,41 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
-
+        let escalator_transform = Transform::from_translation(Vec3::zero());
         let escalator_box = Vec2::new(200.0, 200.0);
 
-        let escalator = spawn_escalator(commands, escalator_handle, escalator_transform, escalator_box);
+        let escalator = spawn_escalator(
+            commands,
+            Handle::default(),
+            escalator_transform,
+            escalator_box,
+        );
 
         let step_box = Vec2::new(50.0, 50.0);
-        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-            .iter()
-            .take(1)
-        {
-            spawn_step(commands, Handle::default(), escalator,
-             *step_transform, step_box, arm.clone());
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+            spawn_step(
+                commands,
+                Handle::default(),
+                escalator,
+                step_transform,
+                step_box,
+                arm.clone(),
+            );
         }
+
+        spawn_ground(
+            commands,
+            Handle::default(),
+            Vec2::new(300.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+        );
+
+        spawn_player(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+        );
     }
 }
 fn spawn_escalator(
@@ -535,6 +556,9 @@ fn build_adjacency_graph(
     for (step, step_entity) in steps.iter() {
         let current_atops = tops.entry(step.escalator).or_insert_with(HashSet::new);
         current_atops.insert(step_entity);
+
+        let current_bottoms = bottoms.entry(step_entity).or_insert_with(HashSet::new);
+        current_bottoms.insert(step.escalator);
     }
 
     *adjacency_graph = AdjacencyGraph {
@@ -875,6 +899,7 @@ fn carry(
     let mut max_bottom_velocity: Option<Vec2> = None;
 
     if let Some(bottom_entities) = adjacency_graph.bottoms.get(&entity) {
+        dbg!("within");
         for bottom_entity in bottom_entities {
             match (max_bottom_velocity, propagation_results.get(bottom_entity)) {
                 (None, None) => {
