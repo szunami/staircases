@@ -140,28 +140,28 @@ fn setup(
     {
         spawn_ground(
             commands,
-            Handle::default(),
+            ground_handle,
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
         );
 
         spawn_crate(
             commands,
-            Handle::default(),
+            crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
         );
 
         spawn_crate(
             commands,
-            Handle::default(),
+            crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
         );
 
         spawn_crate(
             commands,
-            Handle::default(),
+            crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
         );
@@ -878,25 +878,48 @@ fn carry(
     propagation_results: &mut HashMap<Entity, Propagation>,
     grounds: &Query<&Ground>,
 ) {
+    // query across bottoms... RHS won't ever get a propagation result tho?
+    // default to 0 for now
+
+    let mut max_bottom_velocity: Option<Vec2> = None;
+
+    if let Some(bottom_entities) = adjacency_graph.bottoms.get(&entity) {
+        for bottom_entity in bottom_entities {
+            match (max_bottom_velocity, propagation_results.get(bottom_entity)) {
+                (None, None) => {
+                    // found first bottom
+                    // bottom seems to be still
+                    max_bottom_velocity = Some(Vec2::zero());
+                }
+                (None, Some(new_bottom)) => {
+                    // found first bottom
+                    max_bottom_velocity = Some(new_bottom.to_velocity());
+                }
+                (Some(found_velocity), None) => {
+                    // we already found something; is it falling?
+                    // if so, zero out
+                    if found_velocity.y < 0.0 {
+                        max_bottom_velocity = Some(Vec2::zero());
+                    }
+                }
+                (Some(found_velocity), Some(new_bottom)) => {
+                    if found_velocity.y < new_bottom.to_velocity().y {
+                        max_bottom_velocity = Some(new_bottom.to_velocity());
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: test?
     match propagation_results.entry(entity) {
         Entry::Occupied(mut existing_result) => {
             let existing_result = existing_result.get_mut();
-            match existing_result.carry {
-                Some(existing_carry) => {
-                    // TODO: maybe recalculate this to make sure things aren't stale?
-                    if carry_velocity.y > existing_carry.y {
-                        existing_result.carry = Some(carry_velocity);
-                    }
-                }
-                None => {
-                    existing_result.carry = Some(carry_velocity);
-                }
-            }
+            existing_result.carry = max_bottom_velocity;
         }
         Entry::Vacant(vacancy) => {
             vacancy.insert(Propagation {
-                carry: Some(carry_velocity),
+                carry: max_bottom_velocity,
                 ..Propagation::default()
             });
         }
