@@ -139,42 +139,41 @@ fn setup(
 
     {
         let escalator_transform = Transform::from_translation(Vec3::zero());
-        let escalator_box = Vec2::new(200.0, 200.0);
+                let escalator_box = Vec2::new(200.0, 200.0);
 
-        let escalator = spawn_escalator(
-            commands,
-            Handle::default(),
-            escalator_transform,
-            escalator_box,
-        );
+                let escalator = spawn_escalator(
+                    commands,
+                    escalator_handle,
+                    escalator_transform,
+                    escalator_box,
+                );
 
-        let step_box = Vec2::new(50.0, 50.0);
-        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-            spawn_step(
-                commands,
-                Handle::default(),
-                escalator,
-                step_transform,
-                step_box,
-                arm.clone(),
-            );
-        }
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+                    .iter()
+                    .take(1)
+                {
+                    spawn_step(
+                        commands,
+                        step_handle.clone_weak(),
+                        escalator,
+                        *step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
+                }
 
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(300.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-        );
+                let ground_box = Vec2::new(300.0, 50.0);
 
-        spawn_player(
-            commands,
-            Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-        );
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    ground_box,
+                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                );
     }
 }
+
 fn spawn_escalator(
     commands: &mut Commands,
     texture: Handle<TextureAtlas>,
@@ -403,9 +402,6 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0 {
             Some(velocity) => {
-
-                dbg!(velocity);
-
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
             }
@@ -454,7 +450,6 @@ fn update_step_arm(
                 }
             }
         }
-        dbg!(&step.arm);
     }
 }
 
@@ -643,6 +638,8 @@ fn velocity_propagation(
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
+        dbg!(entity);
+        dbg!(propagation_result);
         if let Err(e) = velocities.set(*entity, Velocity(Some(propagation_result.to_velocity()))) {
             eprint!("Error setting velocity: {:?}", e);
         }
@@ -714,7 +711,8 @@ fn propagate_velocity(
         }
     }
 
-    if y_blocked {
+    // TODO: clean this up; steps shouldn't get blocked b/c escalator is grounded
+    if y_blocked && steps.get(entity).is_err() {
         intrinsic_velocity.y = 0.0;
     }
 
@@ -899,7 +897,6 @@ fn carry(
     let mut max_bottom_velocity: Option<Vec2> = None;
 
     if let Some(bottom_entities) = adjacency_graph.bottoms.get(&entity) {
-        dbg!("within");
         for bottom_entity in bottom_entities {
             match (max_bottom_velocity, propagation_results.get(bottom_entity)) {
                 (None, None) => {
@@ -1497,33 +1494,16 @@ mod tests {
                         step_box,
                         arm.clone(),
                     );
-
-                    commands
-                        .spawn(SpriteBundle {
-                            transform: *step_transform,
-                            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                            ..Default::default()
-                        })
-                        .with(BoundingBox(step_box.clone()))
-                        .with(Step {
-                            arm: arm.clone(),
-                            escalator,
-                        })
-                        .with(Velocity(None))
-                        .with(IntrinsicVelocity(None));
                 }
 
                 let ground_box = Vec2::new(300.0, 50.0);
 
-                commands
-                    .spawn(SpriteBundle {
-                        sprite: Sprite::new(ground_box),
-
-                        transform: Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                        ..Default::default()
-                    })
-                    .with(BoundingBox(ground_box))
-                    .with(Ground);
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    ground_box,
+                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                );
             },
             vec![(|steps: Query<(&Step, &Velocity)>| {
                 for (_step, velocity) in steps.iter() {
@@ -1757,15 +1737,26 @@ mod tests {
 
                 let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(commands, Handle::default(), escalator_transform, escalator_box);
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
 
                 let step_box = Vec2::new(50.0, 50.0);
                 for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
                     .iter()
                     .take(1)
                 {
-                    spawn_step(commands, Handle::default(), escalator,
-                     *step_transform, step_box, arm.clone());
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        *step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
                 }
             },
             vec![(|steps: Query<(&Step, &Velocity)>| {
@@ -1785,7 +1776,12 @@ mod tests {
 
                 let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(commands, Handle::default(), escalator_transform, escalator_box);
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
 
                 let step_box = Vec2::new(50.0, 50.0);
                 for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
@@ -1795,8 +1791,14 @@ mod tests {
                     let mut tmp = step_transform.clone();
                     tmp.translation.y -= 1.0;
 
-                    spawn_step(commands, Handle::default(), escalator,
-                     tmp, step_box, arm.clone());
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        tmp,
+                        step_box,
+                        arm.clone(),
+                    );
                 }
             },
             vec![(|steps: Query<(&Step, &Velocity)>| {
