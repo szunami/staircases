@@ -16,6 +16,11 @@ push: take max absolute value of x (?), leave remaining components
 carry: take max value of y, leave other components
 intrinsic: set it to new value. should be unique anyway
 
+This system mostly works. We have to be careful about steps pushing each other. Maybe this can be solved when the graph is built?
+
+Moving left; might require clamping
+
+Falling escalator also seems to work but not past 1 frame?
 
 ## 20210208
 ---

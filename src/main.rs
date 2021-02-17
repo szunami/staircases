@@ -46,7 +46,7 @@ struct Step {
     escalator: Entity,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum Arm {
     A,
     B,
@@ -138,33 +138,20 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        spawn_ground(
-            commands,
-            ground_handle,
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-        );
+        let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
-        );
+        let escalator_box = Vec2::new(200.0, 200.0);
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
-        );
+        let escalator = spawn_escalator(commands, escalator_handle, escalator_transform, escalator_box);
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(-25.0, 100.0, 1.0)),
-        );
+        let step_box = Vec2::new(50.0, 50.0);
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+            .iter()
+            .take(1)
+        {
+            spawn_step(commands, Handle::default(), escalator,
+             *step_transform, step_box, arm.clone());
+        }
     }
 }
 fn spawn_escalator(
@@ -395,6 +382,9 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0 {
             Some(velocity) => {
+
+                dbg!(velocity);
+
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
             }
@@ -443,6 +433,7 @@ fn update_step_arm(
                 }
             }
         }
+        dbg!(&step.arm);
     }
 }
 
@@ -499,7 +490,7 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
 fn build_adjacency_graph(
     mut adjacency_graph: ResMut<AdjacencyGraph>,
 
-    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Step>)>,
     right_query: Query<(Entity, &Transform, &BoundingBox), ()>,
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
@@ -754,7 +745,7 @@ fn propagate_velocity(
     if intrinsic_velocity.x > 0.0 {
         if let Some(rights) = adjacency_graph.rights.get(&entity) {
             for right_entity in rights {
-                push(
+                x_push(
                     intrinsic_velocity.x,
                     *right_entity,
                     adjacency_graph,
@@ -769,7 +760,7 @@ fn propagate_velocity(
     if intrinsic_velocity.x < 0.0 {
         if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
             for left_entity in lefts {
-                push(
+                x_push(
                     intrinsic_velocity.x,
                     *left_entity,
                     adjacency_graph,
@@ -799,7 +790,7 @@ fn propagate_velocity(
 
 // set x velocity, possibly checking for test (?)
 // carry
-fn push(
+fn x_push(
     push_x: f32,
     entity: Entity,
     adjacency_graph: &AdjacencyGraph,
@@ -840,7 +831,7 @@ fn push(
     if push_x > 0.0 {
         if let Some(rights) = adjacency_graph.rights.get(&entity) {
             for right_entity in rights {
-                push(
+                x_push(
                     push_x,
                     *right_entity,
                     adjacency_graph,
@@ -855,7 +846,7 @@ fn push(
     if push_x < 0.0 {
         if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
             for left_entity in lefts {
-                push(
+                x_push(
                     push_x,
                     *left_entity,
                     adjacency_graph,
@@ -1741,45 +1732,46 @@ mod tests {
 
                 let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = commands
-                    .spawn(SpriteSheetBundle {
-                        sprite: TextureAtlasSprite {
-                            color: Color::rgba(1.0, 1.0, 1.0, 0.5),
-                            ..TextureAtlasSprite::default()
-                        },
-
-                        visible: Visible {
-                            is_visible: true,
-                            is_transparent: true,
-                        },
-                        transform: escalator_transform,
-                        ..Default::default()
-                    })
-                    .with(Escalator {})
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None))
-                    .with(BoundingBox(escalator_box.clone()))
-                    .current_entity()
-                    .expect("Parent");
+                let escalator = spawn_escalator(commands, Handle::default(), escalator_transform, escalator_box);
 
                 let step_box = Vec2::new(50.0, 50.0);
                 for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
                     .iter()
                     .take(1)
                 {
-                    commands
-                        .spawn(SpriteBundle {
-                            transform: *step_transform,
-                            sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                            ..Default::default()
-                        })
-                        .with(step_box.clone())
-                        .with(Step {
-                            arm: arm.clone(),
-                            escalator,
-                        })
-                        .with(Velocity(None))
-                        .with(IntrinsicVelocity(None));
+                    spawn_step(commands, Handle::default(), escalator,
+                     *step_transform, step_box, arm.clone());
+                }
+            },
+            vec![(|steps: Query<(&Step, &Velocity)>| {
+                for (_step, velocity) in steps.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    fn falling_escalator_2() {
+        helper(
+            |commands, _resources| {
+                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+
+                let escalator_box = Vec2::new(200.0, 200.0);
+
+                let escalator = spawn_escalator(commands, Handle::default(), escalator_transform, escalator_box);
+
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+                    .iter()
+                    .take(1)
+                {
+                    let mut tmp = step_transform.clone();
+                    tmp.translation.y -= 1.0;
+
+                    spawn_step(commands, Handle::default(), escalator,
+                     tmp, step_box, arm.clone());
                 }
             },
             vec![(|steps: Query<(&Step, &Velocity)>| {
