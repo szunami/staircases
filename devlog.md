@@ -1,3 +1,12 @@
+## 20210217
+
+X clamping: Rather than test returning a bool, it returns the max allowed velocity in a direction.
+So if we found ground, it should return 0.0; if we find a moving step, it should return the value of that step's
+x velocity. This is weird b/c now a step moving to the left has implications for elements to the right of it.
+But maybe ok for now. Maybe "push" info triggers updates left and right?
+
+test returns Option<f32>.
+
 ## 20210216
 
 Propagation system rewrite. Store component-wise velocity. Don't worry about min / max for now.
