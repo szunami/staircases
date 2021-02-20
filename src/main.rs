@@ -1012,6 +1012,22 @@ fn test_left(
         }
     }
 
+    match propagation_results.entry(entity) {
+        Entry::Occupied(mut old_entry) => {
+            let old_entry = old_entry.get_mut();
+            *old_entry = Propagation {
+                left_x_bound: max_x_velocity,
+                ..*old_entry
+            }
+        }   
+        Entry::Vacant(empty) => {
+            empty.insert(Propagation{
+                left_x_bound: max_x_velocity,
+                ..Propagation::default()
+            });
+        }
+    }
+
     max_x_velocity
 }
 
