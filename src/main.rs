@@ -1841,6 +1841,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn player_atop_escalator() {
         helper(
             |commands, _resources| {
@@ -1943,6 +1944,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn player_atop_escalator_cannot_move_left() {
         helper(
             |commands, resources| {
