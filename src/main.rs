@@ -507,7 +507,7 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
 fn build_adjacency_graph(
     mut adjacency_graph: ResMut<AdjacencyGraph>,
 
-    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>, Without<Step>)>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
     right_query: Query<(Entity, &Transform, &BoundingBox), ()>,
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
@@ -517,6 +517,11 @@ fn build_adjacency_graph(
     let mut rights = HashMap::new();
     for (left_entity, left_transform, left_box) in left_query.iter() {
         for (right_entity, right_transform, right_box) in right_query.iter() {
+
+            if steps.get(left_entity).is_ok() && steps.get(right_entity).is_ok() {
+                continue;
+            }
+
             if is_beside(left_transform, left_box, right_transform, right_box) {
                 let current_lefts = rights.entry(left_entity).or_insert_with(HashSet::new);
                 current_lefts.insert(right_entity);
@@ -527,6 +532,9 @@ fn build_adjacency_graph(
     let mut lefts = HashMap::new();
     for (right_entity, right_transform, right_box) in right_query.iter() {
         for (left_entity, left_transform, left_box) in left_query.iter() {
+            if steps.get(left_entity).is_ok() && steps.get(right_entity).is_ok() {
+                continue;
+            }
             if is_beside(left_transform, left_box, right_transform, right_box) {
                 let current_rights = lefts.entry(right_entity).or_insert_with(HashSet::new);
                 current_rights.insert(left_entity);
@@ -539,6 +547,10 @@ fn build_adjacency_graph(
 
     for (atop_entity, atop_transform, atop_box) in atop_query.iter() {
         for (below_entity, below_transform, below_box) in bases_query.iter() {
+
+            if steps.get(atop_entity).is_ok() && steps.get(below_entity).is_ok() {
+                continue;
+            }
             if is_atop(atop_transform, atop_box, below_transform, below_box) {
                 let current_atops = tops.entry(below_entity).or_insert_with(HashSet::new);
                 current_atops.insert(atop_entity);
