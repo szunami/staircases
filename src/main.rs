@@ -152,25 +152,28 @@ fn setup(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
         );
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(500.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-        );
-        spawn_crate(
-            commands,
-            Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(50.0, 50.0, 1.0)),
-        );
+
+        // spawn_crate(
+        //     commands,
+        //     Handle::default(),
+        //     Vec2::new(50.0, 50.0),
+        //     Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
+        // );
+
         spawn_ground(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(100.0, 50.0, 1.0)),
+            Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+        );
+
+        spawn_ground(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
         );
     }
 }
@@ -488,8 +491,8 @@ fn is_beside(
     let right_left = right_transform.translation.x - right_box.0.x / 2.0;
 
     (left_right - right_left).abs() < std::f32::EPSILON
-        && ((left_bottom <= right_bottom && right_bottom <= left_top)
-            || (right_bottom <= left_bottom && left_bottom <= right_top))
+        && ((left_bottom <= right_bottom && right_bottom < left_top)
+            || (right_bottom <= left_bottom && left_bottom < right_top))
 }
 
 fn reset_intrinsic_velocity(mut query: Query<&mut IntrinsicVelocity>) {
@@ -824,6 +827,7 @@ fn propagate_velocity(
                     already_visited,
                     propagation_results,
                     grounds,
+                    steps
                 );
             }
         }
@@ -839,6 +843,7 @@ fn propagate_velocity(
                     already_visited,
                     propagation_results,
                     grounds,
+                    steps
                 );
             }
         }
@@ -853,6 +858,7 @@ fn propagate_velocity(
                 already_visited,
                 propagation_results,
                 grounds,
+                steps
             );
         }
     }
@@ -869,6 +875,7 @@ fn x_push(
     already_visited: &mut HashSet<Entity>,
     propagation_results: &mut HashMap<Entity, Propagation>,
     grounds: &Query<&Ground>,
+    steps: &Query<&Step>,
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -878,11 +885,69 @@ fn x_push(
     }
     already_visited.insert(entity);
 
+    let mut left_x_bound = None;
+
+    if push_x < 0.0 {
+        if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
+            for left_entity in left_entities {
+                match (
+                    left_x_bound,
+                    test_left(
+                        *left_entity,
+                        adjacency_graph,
+                        grounds,
+                        steps,
+                        propagation_results,
+                    ),
+                ) {
+                    (None, None) => {}
+                    (None, Some(new_bound)) => {
+                        left_x_bound = Some(new_bound);
+                    }
+                    (Some(_), None) => {}
+                    (Some(old_bound), Some(new_bound)) => {
+                        left_x_bound = Some(old_bound.max(new_bound));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut right_x_bound = None;
+
+    if push_x > 0.0 {
+        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+            for right_entity in right_entities {
+                match (
+                    right_x_bound,
+                    test_right(
+                        *right_entity,
+                        adjacency_graph,
+                        grounds,
+                        steps,
+                        propagation_results,
+                    ),
+                ) {
+                    (None, None) => {}
+                    (None, Some(new_bound)) => {
+                        right_x_bound = Some(new_bound);
+                    }
+                    (Some(_), None) => {}
+                    (Some(old_bound), Some(new_bound)) => {
+                        right_x_bound = Some(old_bound.min(new_bound));
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: test?
     // TODO: might max_abs persist stale events? probably
     match propagation_results.entry(entity) {
         Entry::Occupied(mut existing_result) => {
             let existing_result = existing_result.get_mut();
+            existing_result.left_x_bound = left_x_bound;
+            existing_result.right_x_bound = right_x_bound;
             match existing_result.push {
                 Some(existing_push) => {
                     existing_result.push = Some(max_abs(existing_push, push_x));
@@ -894,6 +959,8 @@ fn x_push(
         }
         Entry::Vacant(vacancy) => {
             vacancy.insert(Propagation {
+                left_x_bound,
+                right_x_bound,
                 push: Some(push_x),
                 ..Propagation::default()
             });
@@ -910,6 +977,7 @@ fn x_push(
                     already_visited,
                     propagation_results,
                     grounds,
+                    steps,
                 );
             }
         }
@@ -925,12 +993,26 @@ fn x_push(
                     already_visited,
                     propagation_results,
                     grounds,
+                    steps,
                 );
             }
         }
     }
 
     // TODO: carry
+    if let Some(atops) = adjacency_graph.tops.get(&entity) {
+        for atop_entity in atops {
+            carry(
+                Vec2::new(push_x, 0.0),
+                *atop_entity,
+                adjacency_graph,
+                already_visited,
+                propagation_results,
+                grounds,
+                steps
+            )
+        }
+    }
 }
 
 fn carry(
@@ -940,6 +1022,7 @@ fn carry(
     already_visited: &mut HashSet<Entity>,
     propagation_results: &mut HashMap<Entity, Propagation>,
     grounds: &Query<&Ground>,
+    steps: &Query<&Step>,
 ) {
     // query across bottoms... RHS won't ever get a propagation result tho?
     // default to 0 for now
@@ -974,14 +1057,73 @@ fn carry(
         }
     }
 
+    let mut left_x_bound = None;
+
+    if carry_velocity.x < 0.0 {
+        if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
+            for left_entity in left_entities {
+                match (
+                    left_x_bound,
+                    test_left(
+                        *left_entity,
+                        adjacency_graph,
+                        grounds,
+                        steps,
+                        propagation_results,
+                    ),
+                ) {
+                    (None, None) => {}
+                    (None, Some(new_bound)) => {
+                        left_x_bound = Some(new_bound);
+                    }
+                    (Some(_), None) => {}
+                    (Some(old_bound), Some(new_bound)) => {
+                        left_x_bound = Some(old_bound.max(new_bound));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut right_x_bound = None;
+    if carry_velocity.x > 0.0 {
+        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+            for right_entity in right_entities {
+                match (
+                    right_x_bound,
+                    test_right(
+                        *right_entity,
+                        adjacency_graph,
+                        grounds,
+                        steps,
+                        propagation_results,
+                    ),
+                ) {
+                    (None, None) => {}
+                    (None, Some(new_bound)) => {
+                        right_x_bound = Some(new_bound);
+                    }
+                    (Some(_), None) => {}
+                    (Some(old_bound), Some(new_bound)) => {
+                        right_x_bound = Some(old_bound.min(new_bound));
+                    }
+                }
+            }
+        }
+    }
+
     // TODO: test?
     match propagation_results.entry(entity) {
         Entry::Occupied(mut existing_result) => {
             let existing_result = existing_result.get_mut();
+            existing_result.left_x_bound = left_x_bound;
+            existing_result.right_x_bound = right_x_bound;
             existing_result.carry = max_bottom_velocity;
         }
         Entry::Vacant(vacancy) => {
             vacancy.insert(Propagation {
+                left_x_bound,
+                right_x_bound,
                 carry: max_bottom_velocity,
                 ..Propagation::default()
             });
@@ -1988,6 +2130,51 @@ mod tests {
             vec![(|steps: Query<(&Step, &Velocity)>| {
                 for (_step, velocity) in steps.iter() {
                     assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    fn knock_off() {
+        helper(
+            |commands, resources| {
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+                );
+
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
+                );
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+                );
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(0.0, 50.0),
+                    Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+                );
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::D);
+                resources.insert(input)
+            },
+            vec![(|crates: Query<(&Crate, &Velocity)>| {
+                for (_crate, velocity) in crates.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
                 }
             })
             .system()],
