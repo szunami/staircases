@@ -39,6 +39,8 @@ fn framerate(diagnostics: Res<Diagnostics>) {
 #[derive(Clone)]
 struct BoundingBox(Vec2);
 
+struct ActiveBoundingBox;
+
 struct Escalator;
 
 struct Step {
@@ -142,7 +144,8 @@ fn setup(
     let _escalator_handle = texture_atlases.add(escalator_atlas);
     let _player_handle =
         materials.add(Color::rgb(115.0 / 255.0, 190.0 / 255.0, 211.0 / 255.0).into());
-    let _crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
+    let _crate_handle =
+        materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
     let _ground_handle =
         materials.add(Color::rgb(87.0 / 255.0, 114.0 / 255.0, 119.0 / 255.0).into());
     let _step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
@@ -201,6 +204,7 @@ fn spawn_escalator(
         .with(Velocity(None))
         .with(IntrinsicVelocity(None))
         .with(BoundingBox(size))
+        .with(ActiveBoundingBox)
         .current_entity()
         .expect("escalator")
 }
@@ -221,6 +225,7 @@ fn spawn_step(
             ..Default::default()
         })
         .with(BoundingBox(size))
+        .with(ActiveBoundingBox)
         .with(Step { arm, escalator })
         .with(Velocity(None))
         .with(IntrinsicVelocity(None))
@@ -242,6 +247,7 @@ fn spawn_ground(
             ..Default::default()
         })
         .with(BoundingBox(ground_box))
+        .with(ActiveBoundingBox)
         .with(Ground);
 }
 
@@ -260,6 +266,7 @@ fn spawn_player(
         })
         .with(Player)
         .with(BoundingBox(size))
+        .with(ActiveBoundingBox)
         .with(Velocity(None))
         .with(IntrinsicVelocity(None));
 }
@@ -279,6 +286,7 @@ fn spawn_crate(
         })
         .with(Crate {})
         .with(BoundingBox(size))
+        .with(ActiveBoundingBox)
         .with(IntrinsicVelocity(None))
         .with(Velocity(None))
         .current_entity()
@@ -618,14 +626,20 @@ fn velocity_propagation(
     grounds: Query<&Ground>,
     steps: Query<&Step>,
     ivs: Query<&IntrinsicVelocity>,
+    actives: Query<&ActiveBoundingBox>,
 ) {
     // order intrinsic velocities by y top
 
     let mut propagation_results: HashMap<Entity, Propagation> = HashMap::new();
 
-    for (entity, intrinsic_velocity) in order_query.iter() {
+    let actives = &actives;
 
+    for (entity, intrinsic_velocity) in order_query.iter() {
         if let Some(propagation) = intrinsic_velocity.0.clone() {
+            if actives.get(entity).is_err() {
+                continue;
+            }
+
             let mut already_visited: HashSet<Entity> = HashSet::new();
 
             propagate_velocity(
@@ -637,9 +651,9 @@ fn velocity_propagation(
                 &ivs,
                 &mut already_visited,
                 &mut propagation_results,
+                actives,
             );
         }
-
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
@@ -661,6 +675,7 @@ fn propagate_velocity(
 
     already_visited: &mut HashSet<Entity>,
     propagation_results: &mut HashMap<Entity, Propagation>,
+    actives: &Query<&ActiveBoundingBox>,
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -808,53 +823,55 @@ fn propagate_velocity(
 
     //push!
 
-    if intrinsic_velocity.x > 0.0 {
-        if let Some(rights) = adjacency_graph.rights.get(&entity) {
-            for right_entity in rights {
-                x_push(
-                    intrinsic_velocity.x,
-                    *right_entity,
+    if actives.get(entity).is_ok() {
+        if intrinsic_velocity.x > 0.0 {
+            if let Some(rights) = adjacency_graph.rights.get(&entity) {
+                for right_entity in rights {
+                    x_push(
+                        intrinsic_velocity.x,
+                        *right_entity,
+                        adjacency_graph,
+                        already_visited,
+                        propagation_results,
+                        grounds,
+                        steps,
+                        &actives,
+                    );
+                }
+            }
+        }
+
+        if intrinsic_velocity.x < 0.0 {
+            if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
+                for left_entity in lefts {
+                    x_push(
+                        intrinsic_velocity.x,
+                        *left_entity,
+                        adjacency_graph,
+                        already_visited,
+                        propagation_results,
+                        grounds,
+                        steps,
+                        &actives,
+                    );
+                }
+            }
+        }
+
+        if let Some(tops) = adjacency_graph.tops.get(&entity) {
+            for top_entity in tops {
+                carry(
+                    intrinsic_velocity,
+                    *top_entity,
                     adjacency_graph,
                     already_visited,
                     propagation_results,
                     grounds,
-                    steps
+                    steps,
                 );
             }
         }
     }
-
-    if intrinsic_velocity.x < 0.0 {
-        if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
-            for left_entity in lefts {
-                x_push(
-                    intrinsic_velocity.x,
-                    *left_entity,
-                    adjacency_graph,
-                    already_visited,
-                    propagation_results,
-                    grounds,
-                    steps
-                );
-            }
-        }
-    }
-
-    if let Some(tops) = adjacency_graph.tops.get(&entity) {
-        for top_entity in tops {
-            carry(
-                intrinsic_velocity,
-                *top_entity,
-                adjacency_graph,
-                already_visited,
-                propagation_results,
-                grounds,
-                steps
-            );
-        }
-    }
-
-    // handle
 }
 
 // set x velocity, possibly checking for test (?)
@@ -867,6 +884,7 @@ fn x_push(
     propagation_results: &mut HashMap<Entity, Propagation>,
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
+    actives: &Query<&ActiveBoundingBox>,
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -958,50 +976,54 @@ fn x_push(
         }
     }
 
-    if push_x > 0.0 {
-        if let Some(rights) = adjacency_graph.rights.get(&entity) {
-            for right_entity in rights {
-                x_push(
-                    push_x,
-                    *right_entity,
+    if actives.get(entity).is_ok() {
+        if push_x > 0.0 {
+            if let Some(rights) = adjacency_graph.rights.get(&entity) {
+                for right_entity in rights {
+                    x_push(
+                        push_x,
+                        *right_entity,
+                        adjacency_graph,
+                        already_visited,
+                        propagation_results,
+                        grounds,
+                        steps,
+                        actives,
+                    );
+                }
+            }
+        }
+
+        if push_x < 0.0 {
+            if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
+                for left_entity in lefts {
+                    x_push(
+                        push_x,
+                        *left_entity,
+                        adjacency_graph,
+                        already_visited,
+                        propagation_results,
+                        grounds,
+                        steps,
+                        actives,
+                    );
+                }
+            }
+        }
+
+        // TODO: carry
+        if let Some(atops) = adjacency_graph.tops.get(&entity) {
+            for atop_entity in atops {
+                carry(
+                    Vec2::new(push_x, 0.0),
+                    *atop_entity,
                     adjacency_graph,
                     already_visited,
                     propagation_results,
                     grounds,
                     steps,
-                );
+                )
             }
-        }
-    }
-
-    if push_x < 0.0 {
-        if let Some(lefts) = adjacency_graph.lefts.get(&entity) {
-            for left_entity in lefts {
-                x_push(
-                    push_x,
-                    *left_entity,
-                    adjacency_graph,
-                    already_visited,
-                    propagation_results,
-                    grounds,
-                    steps,
-                );
-            }
-        }
-    }
-
-    // TODO: carry
-    if let Some(atops) = adjacency_graph.tops.get(&entity) {
-        for atop_entity in atops {
-            carry(
-                Vec2::new(push_x, 0.0),
-                *atop_entity,
-                adjacency_graph,
-                already_visited,
-                propagation_results,
-                grounds,
-                steps
-            )
         }
     }
 }
@@ -1368,17 +1390,12 @@ mod tests {
     fn player_falls_if_not_atop_anything() {
         helper(
             |commands, _resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-250.0, 200.0, 1.0)),
-
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::default(),
+                );
             },
             vec![(|players: Query<(&Player, &Velocity)>| {
                 for (_player, velocity) in players.iter() {
@@ -1393,28 +1410,19 @@ mod tests {
     fn player_doesnt_fall_if_atop_ground() {
         helper(
             |commands, _resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
 
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
-
-                let ground_box = Vec2::new(500.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(500.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
             },
             vec![(|players: Query<(&Player, &Velocity)>| {
                 for (_player, velocity) in players.iter() {
@@ -1429,28 +1437,19 @@ mod tests {
     fn player_moves_left_when_a_is_pressed() {
         helper(
             |commands, resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
 
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
-
-                let ground_box = Vec2::new(500.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(500.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
 
                 let mut input = Input::<KeyCode>::default();
                 input.press(KeyCode::A);
@@ -1672,41 +1671,26 @@ mod tests {
     fn push_off_edge() {
         helper(
             |commands, resources| {
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
 
-                        sprite: Sprite::new(Vec2::new(50.0, 50.0)),
-                        ..Default::default()
-                    })
-                    .with(Player {})
-                    .with(BoundingBox(Vec2::new(50.0, 50.0)))
-                    .with(Velocity(None))
-                    .with(IntrinsicVelocity(None));
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
 
-                let ground_box = Vec2::new(50.0, 50.0);
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        sprite: Sprite::new(ground_box),
-                        ..Default::default()
-                    })
-                    .with(Ground {})
-                    .with(BoundingBox(ground_box))
-                    .with(Velocity(None));
-
-                let crate_box = Vec2::new(50.0, 50.0);
-
-                commands
-                    .spawn(SpriteBundle {
-                        transform: Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
-                        sprite: Sprite::new(crate_box),
-                        ..Default::default()
-                    })
-                    .with(Crate {})
-                    .with(BoundingBox(crate_box))
-                    .with(IntrinsicVelocity(None))
-                    .with(Velocity(None));
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+                );
 
                 let mut input = Input::<KeyCode>::default();
                 input.press(KeyCode::A);
