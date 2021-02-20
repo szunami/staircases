@@ -611,7 +611,7 @@ fn falling_intrinsic_velocity(
 fn velocity_propagation(
     adjacency_graph: Res<AdjacencyGraph>,
 
-    order_query: Query<(Entity, &Transform, &BoundingBox, &IntrinsicVelocity)>,
+    order_query: Query<(Entity, &IntrinsicVelocity)>,
 
     mut velocities: Query<&mut Velocity>,
 
@@ -621,34 +621,25 @@ fn velocity_propagation(
 ) {
     // order intrinsic velocities by y top
 
-    let mut intrinsic_velocity_sources = vec![];
-
-    for (entity, transform, bounding_box, intrinsic_velocity) in order_query.iter() {
-        if let Some(intrinsic_velocity) = &intrinsic_velocity.0 {
-            let top = transform.translation.y + bounding_box.0.y / 2.0;
-
-            intrinsic_velocity_sources.push((entity, top, intrinsic_velocity));
-        }
-    }
-
-    // don't need to sort here i think
-    intrinsic_velocity_sources.sort_by(|a, b| a.1.partial_cmp(&b.1).expect("sort velocity"));
-
     let mut propagation_results: HashMap<Entity, Propagation> = HashMap::new();
 
-    for (entity, _top, intrinsic_velocity) in intrinsic_velocity_sources {
-        let mut already_visited: HashSet<Entity> = HashSet::new();
+    for (entity, intrinsic_velocity) in order_query.iter() {
 
-        propagate_velocity(
-            entity,
-            &*adjacency_graph,
-            &grounds,
-            &steps,
-            intrinsic_velocity.intrinsic.expect("asdf"),
-            &ivs,
-            &mut already_visited,
-            &mut propagation_results,
-        );
+        if let Some(propagation) = intrinsic_velocity.0.clone() {
+            let mut already_visited: HashSet<Entity> = HashSet::new();
+
+            propagate_velocity(
+                entity,
+                &*adjacency_graph,
+                &grounds,
+                &steps,
+                propagation.intrinsic.expect("asdf"),
+                &ivs,
+                &mut already_visited,
+                &mut propagation_results,
+            );
+        }
+
     }
 
     for (entity, propagation_result) in propagation_results.iter() {
