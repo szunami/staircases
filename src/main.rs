@@ -145,28 +145,29 @@ fn setup(
     {
         spawn_player(
             commands,
-            player_handle,
+            Handle::default(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
         );
         spawn_ground(
             commands,
-            ground_handle.clone_weak(),
+            Handle::default(),
             Vec2::new(500.0, 50.0),
             Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
         );
         spawn_crate(
             commands,
-            crate_handle,
+            Handle::default(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
         );
         spawn_ground(
             commands,
-            ground_handle,
+            Handle::default(),
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
         );
+
     }
 }
 
@@ -741,6 +742,7 @@ fn propagate_velocity(
                 propagation_results.insert(
                     entity,
                     Propagation {
+                        left_x_bound: left_x_bound,
                         // TODO: probably don't do this here
                         carry: Some(escalator_result.to_velocity()),
                         intrinsic: step_iv.0.clone().expect("asdf").intrinsic,
@@ -752,6 +754,7 @@ fn propagate_velocity(
                 propagation_results.insert(
                     entity,
                     Propagation {
+                        left_x_bound: left_x_bound,
                         intrinsic: Some(intrinsic_velocity),
                         ..Propagation::default()
                     },
@@ -768,6 +771,7 @@ fn propagate_velocity(
             }
             Entry::Vacant(vacancy) => {
                 vacancy.insert(Propagation {
+                    left_x_bound: left_x_bound,
                     intrinsic: Some(intrinsic_velocity),
                     ..Propagation::default()
                 });
@@ -1375,13 +1379,13 @@ mod tests {
             vec![
                 (|players: Query<(&Player, &Velocity)>| {
                     for (_player, velocity) in players.iter() {
-                        assert_eq!(velocity.0, Some(Vec2::new(0.0, 0.0)));
+                        assert_eq!(velocity.0, Some(Vec2::zero()));
                     }
                 })
                 .system(),
                 (|crates: Query<(&Crate, &Velocity)>| {
                     for (_crate, velocity) in crates.iter() {
-                        assert_eq!(velocity.0, None);
+                        assert_eq!(velocity.0, Some(Vec2::zero()));
                     }
                 })
                 .system(),
