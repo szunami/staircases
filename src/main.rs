@@ -62,6 +62,7 @@ struct IntrinsicVelocity(Option<Propagation>);
 #[derive(Clone, Debug)]
 struct Propagation {
     left_x_bound: Option<f32>,
+    right_x_bound: Option<f32>,
     push: Option<f32>,
     carry: Option<Vec2>,
     intrinsic: Option<Vec2>,
@@ -71,6 +72,7 @@ impl Default for Propagation {
     fn default() -> Self {
         Propagation {
             left_x_bound: None,
+            right_x_bound: None,
             push: None,
             carry: None,
             intrinsic: None,
@@ -87,6 +89,12 @@ impl Propagation {
         let mut result_x = push_x + carry.x + intrinsic.x;
         if let Some(left_x_bound) = self.left_x_bound {
             result_x = result_x.max(left_x_bound);
+        }
+        if let Some(right_x_bound) = self.right_x_bound {
+            dbg!(right_x_bound);
+            dbg!(result_x);
+            result_x = result_x.min(right_x_bound);
+            dbg!(result_x);
         }
         let result_y = carry.y + intrinsic.y;
 
@@ -159,13 +167,13 @@ fn setup(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(-50.0, 50.0, 1.0)),
+            Transform::from_translation(Vec3::new(50.0, 50.0, 1.0)),
         );
         spawn_ground(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(-100.0, 50.0, 1.0)),
+            Transform::from_translation(Vec3::new(100.0, 50.0, 1.0)),
         );
 
     }
@@ -695,17 +703,34 @@ fn propagate_velocity(
         }
     }
 
-    // if intrinsic_velocity.x > 0.0 {
-    //     if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
-    //         for right_entity in right_entities {
-    //             x_blocked = x_blocked | test_right(*right_entity, adjacency_graph, grounds)
-    //         }
-    //     }
-    // }
+    let mut right_x_bound = None;
 
-    // if x_blocked {
-    //     intrinsic_velocity.x = 0.0;
-    // }
+    if intrinsic_velocity.x > 0.0 {
+        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+            for right_entity in right_entities {
+
+                match (
+                    right_x_bound,
+                    test_right(
+                        *right_entity,
+                        adjacency_graph,
+                        grounds, steps,
+                        propagation_results
+                    )
+                ) {
+                    (None, None) => {}
+                    (None, Some(new_bound)) => {
+                        right_x_bound = Some(new_bound);
+                    }
+                    (Some(_), None) => {}
+                    (Some(old_bound), Some(new_bound)) => {
+                        right_x_bound = Some(old_bound.min(new_bound));
+                    }
+                }
+            }
+        }
+    }
+
 
     let mut y_blocked = false;
 
@@ -743,6 +768,7 @@ fn propagate_velocity(
                     entity,
                     Propagation {
                         left_x_bound: left_x_bound,
+                        right_x_bound: right_x_bound,
                         // TODO: probably don't do this here
                         carry: Some(escalator_result.to_velocity()),
                         intrinsic: step_iv.0.clone().expect("asdf").intrinsic,
@@ -755,6 +781,7 @@ fn propagate_velocity(
                     entity,
                     Propagation {
                         left_x_bound: left_x_bound,
+                        right_x_bound: right_x_bound,
                         intrinsic: Some(intrinsic_velocity),
                         ..Propagation::default()
                     },
@@ -772,6 +799,7 @@ fn propagate_velocity(
             Entry::Vacant(vacancy) => {
                 vacancy.insert(Propagation {
                     left_x_bound: left_x_bound,
+                    right_x_bound: right_x_bound,
                     intrinsic: Some(intrinsic_velocity),
                     ..Propagation::default()
                 });
@@ -973,7 +1001,6 @@ fn test_left(
     propagation_results: &mut HashMap<Entity, Propagation>,
 ) -> Option<f32> {
     if grounds.get(entity).is_ok() {
-        dbg!("hit ground");
         return Some(0.0);
     }
 
@@ -1035,20 +1062,67 @@ fn test_left(
     max_x_velocity
 }
 
-fn test_right(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
+fn test_right(
+    entity: Entity,
+    adjacency_graph: &AdjacencyGraph,
+    grounds: &Query<&Ground>,
+    steps: &Query<&Step>,
+    propagation_results: &mut HashMap<Entity, Propagation>,
+) -> Option<f32> {
     if grounds.get(entity).is_ok() {
-        return true;
+        return Some(0.0);
     }
 
-    if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
-        for right_entity in right_entities {
-            if test_right(*right_entity, adjacency_graph, grounds) {
-                return true;
+    if steps.get(entity).is_ok() {
+        // This seems order dependent...
+        // If we find a step, return it's velocity
+        match propagation_results.get(&entity) {
+            Some(propagation) => {
+                return Some(propagation.to_velocity().x);
+            }
+            None => {
+                return Some(0.0);
             }
         }
     }
 
-    false
+    let mut min_x_velocity = None;
+
+    if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+        for right_entity in right_entities {
+            match (
+                min_x_velocity,
+                test_right(*right_entity, adjacency_graph, grounds, steps, propagation_results)
+            ) {
+                (None, None) => {}
+                (None, Some(new_bound)) => {
+                    min_x_velocity = Some(new_bound);
+                }
+                (Some(_), None) => {}
+                (Some(old_bound), Some(new_bound)) => {
+                    min_x_velocity = Some(old_bound.min(new_bound));
+                }
+            }
+        }
+    }
+
+    match propagation_results.entry(entity) {
+        Entry::Occupied(mut old_entry) => {
+            let old_entry = old_entry.get_mut();
+            *old_entry = Propagation {
+                right_x_bound: min_x_velocity,
+                ..*old_entry
+            }
+        }   
+        Entry::Vacant(empty) => {
+            empty.insert(Propagation{
+                right_x_bound: min_x_velocity,
+                ..Propagation::default()
+            });
+        }
+    }
+
+    min_x_velocity
 }
 
 fn test_up(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&Ground>) -> bool {
@@ -1344,7 +1418,7 @@ mod tests {
     }
 
     #[test]
-    fn basic_blocking() {
+    fn basic_blocking_left() {
         helper(
             |commands, resources| {
                 spawn_player(
@@ -1374,6 +1448,56 @@ mod tests {
 
                 let mut input = Input::<KeyCode>::default();
                 input.press(KeyCode::A);
+                resources.insert(input);
+            },
+            vec![
+                (|players: Query<(&Player, &Velocity)>| {
+                    for (_player, velocity) in players.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::zero()));
+                    }
+                })
+                .system(),
+                (|crates: Query<(&Crate, &Velocity)>| {
+                    for (_crate, velocity) in crates.iter() {
+                        assert_eq!(velocity.0, Some(Vec2::zero()));
+                    }
+                })
+                .system(),
+            ],
+        )
+    }
+
+    #[test]
+    fn basic_blocking_right() {
+        helper(
+            |commands, resources| {
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 50.0, 1.0)),
+                );
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(500.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                );
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(50.0, 50.0, 1.0)),
+                );
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(100.0, 50.0, 1.0)),
+                );
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::D);
                 resources.insert(input);
             },
             vec![
