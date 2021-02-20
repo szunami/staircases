@@ -91,10 +91,7 @@ impl Propagation {
             result_x = result_x.max(left_x_bound);
         }
         if let Some(right_x_bound) = self.right_x_bound {
-            dbg!(right_x_bound);
-            dbg!(result_x);
             result_x = result_x.min(right_x_bound);
-            dbg!(result_x);
         }
         let result_y = carry.y + intrinsic.y;
 
