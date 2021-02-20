@@ -175,7 +175,6 @@ fn setup(
             Vec2::new(50.0, 50.0),
             Transform::from_translation(Vec3::new(100.0, 50.0, 1.0)),
         );
-
     }
 }
 
@@ -708,15 +707,15 @@ fn propagate_velocity(
     if intrinsic_velocity.x > 0.0 {
         if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
             for right_entity in right_entities {
-
                 match (
                     right_x_bound,
                     test_right(
                         *right_entity,
                         adjacency_graph,
-                        grounds, steps,
-                        propagation_results
-                    )
+                        grounds,
+                        steps,
+                        propagation_results,
+                    ),
                 ) {
                     (None, None) => {}
                     (None, Some(new_bound)) => {
@@ -730,7 +729,6 @@ fn propagate_velocity(
             }
         }
     }
-
 
     let mut y_blocked = false;
 
@@ -1050,9 +1048,9 @@ fn test_left(
                 left_x_bound: max_x_velocity,
                 ..*old_entry
             }
-        }   
+        }
         Entry::Vacant(empty) => {
-            empty.insert(Propagation{
+            empty.insert(Propagation {
                 left_x_bound: max_x_velocity,
                 ..Propagation::default()
             });
@@ -1092,7 +1090,13 @@ fn test_right(
         for right_entity in right_entities {
             match (
                 min_x_velocity,
-                test_right(*right_entity, adjacency_graph, grounds, steps, propagation_results)
+                test_right(
+                    *right_entity,
+                    adjacency_graph,
+                    grounds,
+                    steps,
+                    propagation_results,
+                ),
             ) {
                 (None, None) => {}
                 (None, Some(new_bound)) => {
@@ -1113,9 +1117,9 @@ fn test_right(
                 right_x_bound: min_x_velocity,
                 ..*old_entry
             }
-        }   
+        }
         Entry::Vacant(empty) => {
-            empty.insert(Propagation{
+            empty.insert(Propagation {
                 right_x_bound: min_x_velocity,
                 ..Propagation::default()
             });
