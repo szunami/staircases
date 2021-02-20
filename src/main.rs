@@ -139,13 +139,13 @@ fn setup(
     let escalator_base = asset_server.load("textures/base.png");
     let escalator_atlas = TextureAtlas::from_grid(escalator_base, Vec2::new(200.0, 200.0), 1, 1);
 
-    let escalator_handle = texture_atlases.add(escalator_atlas);
-    let player_handle =
+    let _escalator_handle = texture_atlases.add(escalator_atlas);
+    let _player_handle =
         materials.add(Color::rgb(115.0 / 255.0, 190.0 / 255.0, 211.0 / 255.0).into());
-    let crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
-    let ground_handle =
+    let _crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
+    let _ground_handle =
         materials.add(Color::rgb(87.0 / 255.0, 114.0 / 255.0, 119.0 / 255.0).into());
-    let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
+    let _step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
         spawn_player(
@@ -155,25 +155,24 @@ fn setup(
             Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     Handle::default(),
-        //     Vec2::new(50.0, 50.0),
-        //     Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
-        // );
-
         spawn_ground(
             commands,
             Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+            Vec2::new(100.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
         );
 
         spawn_ground(
             commands,
             Handle::default(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
+            Transform::from_translation(Vec3::new(150.0, -50.0, 0.0)),
+        );
+        spawn_ground(
+            commands,
+            Handle::default(),
+            Vec2::new(1000.0, 50.0),
+            Transform::from_translation(Vec3::new(150.0, -100.0, 0.0)),
         );
     }
 }
@@ -275,6 +274,7 @@ fn spawn_crate(
         .spawn(SpriteBundle {
             transform,
             sprite: Sprite::new(size),
+            material,
             ..Default::default()
         })
         .with(Crate {})
@@ -510,7 +510,7 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
 fn build_adjacency_graph(
     mut adjacency_graph: ResMut<AdjacencyGraph>,
 
-    left_query: Query<(Entity, &Transform, &BoundingBox), (Without<Escalator>)>,
+    left_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
     right_query: Query<(Entity, &Transform, &BoundingBox), ()>,
     atop_query: Query<(Entity, &Transform, &BoundingBox), Without<Step>>,
     bases_query: Query<(Entity, &Transform, &BoundingBox), Without<Escalator>>,
@@ -1024,6 +1024,13 @@ fn carry(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
 ) {
+    if grounds.get(entity).is_ok() {
+        return;
+    }
+    if already_visited.contains(&entity) {
+        return;
+    }
+    already_visited.insert(entity);
     // query across bottoms... RHS won't ever get a propagation result tho?
     // default to 0 for now
 
@@ -2018,7 +2025,7 @@ mod tests {
                     .iter()
                     .take(1)
                 {
-                    let a = spawn_step(
+                    spawn_step(
                         commands,
                         Handle::default(),
                         escalator,
