@@ -16,7 +16,9 @@ jobs:
         with:
           command: build
           args: --release --all-features
+          toolchain: nightly
       - name: test
         uses: actions-rs/cargo@v1
         with:
           command: test
+          toolchain: nightly
