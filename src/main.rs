@@ -39,6 +39,7 @@ fn framerate(diagnostics: Res<Diagnostics>) {
 #[derive(Clone)]
 struct BoundingBox(Vec2);
 
+#[derive(Debug)]
 struct ActiveBoundingBox;
 
 struct Escalator;
@@ -59,6 +60,7 @@ enum Arm {
 #[derive(Clone, PartialEq, Debug)]
 struct Velocity(Option<Vec2>);
 
+#[derive(Debug)]
 struct IntrinsicVelocity(Option<Propagation>);
 
 #[derive(Clone, Debug)]
@@ -764,10 +766,12 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         propagation_results,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
                     (None, Some(new_bound)) => {
+                        dbg!("right bound", new_bound);
                         right_x_bound = Some(new_bound);
                     }
                     (Some(_), None) => {}
@@ -975,6 +979,7 @@ fn x_push(
                         grounds,
                         steps,
                         propagation_results,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
@@ -1083,6 +1088,7 @@ fn carry(
     ivs: &Query<&IntrinsicVelocity>,
     actives: &Query<&ActiveBoundingBox>,
 ) {
+
     if grounds.get(entity).is_ok() {
         return;
     }
@@ -1126,6 +1132,7 @@ fn carry(
     let mut left_x_bound = None;
 
     if carry_velocity.x < 0.0 {
+        dbg!("looking for left bound");
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
                 match (
@@ -1150,6 +1157,8 @@ fn carry(
                     }
                 }
             }
+
+            dbg!(left_x_bound);
         }
     }
 
@@ -1165,6 +1174,7 @@ fn carry(
                         grounds,
                         steps,
                         propagation_results,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
@@ -1221,11 +1231,15 @@ fn test_left(
         return Some(0.0);
     }
 
+    dbg!(actives.get(entity));
+
     if actives.get(entity).is_err() {
         return None;
     }
 
     if steps.get(entity).is_ok() {
+        dbg!("testing left");
+
         // This seems order dependent...
         // If we find a step, return it's velocity
         match propagation_results.get(&entity) {
@@ -1234,7 +1248,8 @@ fn test_left(
             }
             None => {
                 let x = ivs.get(entity).expect("step lookup").clone();
-                return x.0.clone().expect("step IV").intrinsic.map(|x| x.y);
+                dbg!(x);
+                return x.0.clone().expect("step IV").intrinsic.map(|x| x.x);
             }
         }
     }
@@ -1292,9 +1307,15 @@ fn test_right(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
     propagation_results: &mut HashMap<Entity, Propagation>,
+    actives: &Query<&ActiveBoundingBox>,
+
 ) -> Option<f32> {
     if grounds.get(entity).is_ok() {
         return Some(0.0);
+    }
+
+    if actives.get(entity).is_err() {
+        return None;
     }
 
     if steps.get(entity).is_ok() {
@@ -1322,6 +1343,7 @@ fn test_right(
                     grounds,
                     steps,
                     propagation_results,
+                    actives
                 ),
             ) {
                 (None, None) => {}
