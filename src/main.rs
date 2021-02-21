@@ -1121,58 +1121,54 @@ fn carry(
 
     let mut left_x_bound = None;
 
-    if carry_velocity.x < 0.0 {
-        if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
-            for left_entity in left_entities {
-                match (
-                    left_x_bound,
-                    test_left(
-                        *left_entity,
-                        adjacency_graph,
-                        grounds,
-                        steps,
-                        propagation_results,
-                        ivs,
-                        actives,
-                    ),
-                ) {
-                    (None, None) => {}
-                    (None, Some(new_bound)) => {
-                        left_x_bound = Some(new_bound);
-                    }
-                    (Some(_), None) => {}
-                    (Some(old_bound), Some(new_bound)) => {
-                        left_x_bound = Some(old_bound.max(new_bound));
-                    }
+    if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
+        for left_entity in left_entities {
+            match (
+                left_x_bound,
+                test_left(
+                    *left_entity,
+                    adjacency_graph,
+                    grounds,
+                    steps,
+                    propagation_results,
+                    ivs,
+                    actives,
+                ),
+            ) {
+                (None, None) => {}
+                (None, Some(new_bound)) => {
+                    left_x_bound = Some(new_bound);
+                }
+                (Some(_), None) => {}
+                (Some(old_bound), Some(new_bound)) => {
+                    left_x_bound = Some(old_bound.max(new_bound));
                 }
             }
         }
     }
 
     let mut right_x_bound = None;
-    if carry_velocity.x > 0.0 {
-        if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
-            for right_entity in right_entities {
-                match (
-                    right_x_bound,
-                    test_right(
-                        *right_entity,
-                        adjacency_graph,
-                        grounds,
-                        steps,
-                        propagation_results,
-                        ivs,
-                        actives,
-                    ),
-                ) {
-                    (None, None) => {}
-                    (None, Some(new_bound)) => {
-                        right_x_bound = Some(new_bound);
-                    }
-                    (Some(_), None) => {}
-                    (Some(old_bound), Some(new_bound)) => {
-                        right_x_bound = Some(old_bound.min(new_bound));
-                    }
+    if let Some(right_entities) = adjacency_graph.rights.get(&entity) {
+        for right_entity in right_entities {
+            match (
+                right_x_bound,
+                test_right(
+                    *right_entity,
+                    adjacency_graph,
+                    grounds,
+                    steps,
+                    propagation_results,
+                    ivs,
+                    actives,
+                ),
+            ) {
+                (None, None) => {}
+                (None, Some(new_bound)) => {
+                    right_x_bound = Some(new_bound);
+                }
+                (Some(_), None) => {}
+                (Some(old_bound), Some(new_bound)) => {
+                    right_x_bound = Some(old_bound.min(new_bound));
                 }
             }
         }
