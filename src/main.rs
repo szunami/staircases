@@ -154,40 +154,40 @@ fn setup(
 
     {
         let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+        let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+        let escalator = spawn_escalator(
+            commands,
+            Handle::default(),
+            escalator_transform,
+            escalator_box,
+        );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
+        let step_box = Vec2::new(50.0, 50.0);
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+            spawn_step(
+                commands,
+                Handle::default(),
+                escalator,
+                step_transform,
+                step_box,
+                arm.clone(),
+            );
+        }
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(300.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
+        spawn_ground(
+            commands,
+            Handle::default(),
+            Vec2::new(300.0, 50.0),
+            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+        );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-                );
+        spawn_player(
+            commands,
+            Handle::default(),
+            Vec2::new(50.0, 50.0),
+            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+        );
     }
 }
 
@@ -228,9 +228,7 @@ fn spawn_step(
     size: Vec2,
     arm: Arm,
 ) -> Entity {
-
-    if arm != Arm::B {
-        commands
+    commands
         .spawn(SpriteBundle {
             material,
             transform,
@@ -244,23 +242,6 @@ fn spawn_step(
         .with(IntrinsicVelocity(None))
         .current_entity()
         .expect("spawned step")
-    } else {
-        commands
-        .spawn(SpriteBundle {
-            material,
-            transform,
-            sprite: Sprite::new(size),
-            ..Default::default()
-        })
-        .with(BoundingBox(size))
-        .with(Step { arm, escalator })
-        .with(Velocity(None))
-        .with(IntrinsicVelocity(None))
-        .current_entity()
-        .expect("spawned step") 
-    }
-
-
 }
 
 fn spawn_ground(
@@ -737,7 +718,7 @@ fn propagate_velocity(
                         steps,
                         propagation_results,
                         intrinsic_velocities,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -766,7 +747,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         propagation_results,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -873,7 +854,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         &actives,
-                        intrinsic_velocities
+                        intrinsic_velocities,
                     );
                 }
             }
@@ -891,7 +872,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         &actives,
-                        intrinsic_velocities
+                        intrinsic_velocities,
                     );
                 }
             }
@@ -908,7 +889,7 @@ fn propagate_velocity(
                     grounds,
                     steps,
                     intrinsic_velocities,
-                    actives
+                    actives,
                 );
             }
         }
@@ -926,7 +907,7 @@ fn x_push(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
     actives: &Query<&ActiveBoundingBox>,
-    ivs: &Query<&IntrinsicVelocity>
+    ivs: &Query<&IntrinsicVelocity>,
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -950,7 +931,7 @@ fn x_push(
                         steps,
                         propagation_results,
                         ivs,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -979,7 +960,7 @@ fn x_push(
                         grounds,
                         steps,
                         propagation_results,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -1034,7 +1015,7 @@ fn x_push(
                         grounds,
                         steps,
                         actives,
-                        ivs
+                        ivs,
                     );
                 }
             }
@@ -1052,7 +1033,7 @@ fn x_push(
                         grounds,
                         steps,
                         actives,
-                        ivs
+                        ivs,
                     );
                 }
             }
@@ -1070,7 +1051,7 @@ fn x_push(
                     grounds,
                     steps,
                     ivs,
-                    actives
+                    actives,
                 )
             }
         }
@@ -1088,7 +1069,6 @@ fn carry(
     ivs: &Query<&IntrinsicVelocity>,
     actives: &Query<&ActiveBoundingBox>,
 ) {
-
     if grounds.get(entity).is_ok() {
         return;
     }
@@ -1144,7 +1124,7 @@ fn carry(
                         steps,
                         propagation_results,
                         ivs,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -1174,7 +1154,7 @@ fn carry(
                         grounds,
                         steps,
                         propagation_results,
-                        actives
+                        actives,
                     ),
                 ) {
                     (None, None) => {}
@@ -1267,7 +1247,7 @@ fn test_left(
                     steps,
                     propagation_results,
                     ivs,
-                    actives
+                    actives,
                 ),
             ) {
                 (None, None) => {}
@@ -1308,7 +1288,6 @@ fn test_right(
     steps: &Query<&Step>,
     propagation_results: &mut HashMap<Entity, Propagation>,
     actives: &Query<&ActiveBoundingBox>,
-
 ) -> Option<f32> {
     if grounds.get(entity).is_ok() {
         return Some(0.0);
@@ -1343,7 +1322,7 @@ fn test_right(
                     grounds,
                     steps,
                     propagation_results,
-                    actives
+                    actives,
                 ),
             ) {
                 (None, None) => {}
