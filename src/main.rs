@@ -188,15 +188,36 @@ fn setup(
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
+            Vec2::new(100.0, 100.0),
+            t(150.0, -100.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
             Vec2::new(200.0, 200.0),
             t(-200.0, 0.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-250.0, 175.0),
         );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
+            Vec2::new(200.0, 50.0),
             t(-75.0, 125.0),
+        );
+
+        spawn_player(
+            commands,
+            player_handle,
+            Vec2::new(50.0, 50.0),
+            t(50.0, 100.0),
         );
     }
 }
@@ -2275,6 +2296,133 @@ mod tests {
             vec![(|crates: Query<(&Crate, &Velocity)>| {
                 for (_crate, velocity) in crates.iter() {
                     assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    fn walled_double_step() {
+        helper(
+            |commands, resources| {
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    t(0.0, 0.0),
+                    Vec2::new(200.0, 200.0),
+                );
+
+                spawn_step(
+                    commands,
+                    Handle::default(),
+                    escalator,
+                    t(-50.0, 50.0),
+                    Vec2::new(50.0, 50.0),
+                    Arm::D,
+                );
+                spawn_step(
+                    commands,
+                    Handle::default(),
+                    escalator,
+                    t(-75.0, 50.0),
+                    Vec2::new(50.0, 50.0),
+                    Arm::A,
+                );
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(200.0, 100.0),
+                    t(0.0, -150.0),
+                );
+
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    t(-75.0, 100.0),
+                );
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    t(-125.0, 75.0),
+                );
+            },
+            vec![(|crates: Query<(&Crate, &Velocity)>| {
+                for (_crate, velocity) in crates.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
+                }
+            })
+            .system()],
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn pushing_walled_double_step() {
+        helper(
+            |commands, resources| {
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    t(0.0, 0.0),
+                    Vec2::new(200.0, 200.0),
+                );
+
+                spawn_step(
+                    commands,
+                    Handle::default(),
+                    escalator,
+                    t(-50.0, 50.0),
+                    Vec2::new(50.0, 50.0),
+                    Arm::D,
+                );
+                spawn_step(
+                    commands,
+                    Handle::default(),
+                    escalator,
+                    t(-75.0, 50.0),
+                    Vec2::new(50.0, 50.0),
+                    Arm::A,
+                );
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(200.0, 100.0),
+                    t(0.0, -150.0),
+                );
+
+                spawn_crate(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    t(-75.0, 100.0),
+                );
+
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    t(-125.0, 125.0),
+                );
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    t(-125.0, 75.0),
+                );
+
+                let mut input = Input::<KeyCode>::default();
+                input.press(KeyCode::D);
+                resources.insert(input);
+            },
+            vec![(|crates: Query<(&Crate, &Velocity)>| {
+                for (_crate, velocity) in crates.iter() {
+                    assert_eq!(*velocity, Velocity(Some(Vec2::new(1.0, 1.0))));
                 }
             })
             .system()],
