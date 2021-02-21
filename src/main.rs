@@ -747,6 +747,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         propagation_results,
+                        intrinsic_velocities,
                         actives,
                     ),
                 ) {
@@ -959,6 +960,7 @@ fn x_push(
                         grounds,
                         steps,
                         propagation_results,
+                        ivs,
                         actives,
                     ),
                 ) {
@@ -1150,6 +1152,7 @@ fn carry(
                         grounds,
                         steps,
                         propagation_results,
+                        ivs,
                         actives,
                     ),
                 ) {
@@ -1281,6 +1284,7 @@ fn test_right(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
     propagation_results: &mut HashMap<Entity, Propagation>,
+    ivs: &Query<&IntrinsicVelocity>,
     actives: &Query<&ActiveBoundingBox>,
 ) -> Option<f32> {
     if grounds.get(entity).is_ok() {
@@ -1292,15 +1296,20 @@ fn test_right(
     }
 
     if steps.get(entity).is_ok() {
-        // This seems order dependent...
-        // If we find a step, return it's velocity
+
         match propagation_results.get(&entity) {
             Some(propagation) => {
                 return Some(propagation.to_velocity().x);
             }
             None => {
-                return Some(0.0);
-            }
+                return ivs
+                    .get(entity)
+                    .expect("step iv lookup")
+                    .0
+                    .clone()
+                    .expect("step IV")
+                    .intrinsic
+                    .map(|intrinsic| intrinsic.x)            }
         }
     }
 
@@ -1316,6 +1325,7 @@ fn test_right(
                     grounds,
                     steps,
                     propagation_results,
+                    ivs,
                     actives,
                 ),
             ) {
