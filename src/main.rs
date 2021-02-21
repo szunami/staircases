@@ -129,6 +129,11 @@ impl Default for AdjacencyGraph {
     }
 }
 
+fn t(x: f32, y: f32) -> Transform {
+    Transform::from_translation(Vec3::new(x, y, 0.0))
+}
+
+#[allow(unused_variables)]
 fn setup(
     commands: &mut Commands,
 
@@ -144,50 +149,54 @@ fn setup(
     let escalator_base = asset_server.load("textures/base.png");
     let escalator_atlas = TextureAtlas::from_grid(escalator_base, Vec2::new(200.0, 200.0), 1, 1);
 
-    let _escalator_handle = texture_atlases.add(escalator_atlas);
-    let _player_handle =
+    let escalator_handle = texture_atlases.add(escalator_atlas);
+    let player_handle =
         materials.add(Color::rgb(115.0 / 255.0, 190.0 / 255.0, 211.0 / 255.0).into());
-    let _crate_handle =
-        materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
-    let _ground_handle =
+    let crate_handle = materials.add(Color::rgb(173.0 / 255.0, 119.0 / 255.0, 87.0 / 255.0).into());
+    let ground_handle =
         materials.add(Color::rgb(87.0 / 255.0, 114.0 / 255.0, 119.0 / 255.0).into());
-    let _step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
+    let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        let escalator_transform = Transform::from_translation(Vec3::zero());
-        let escalator_box = Vec2::new(200.0, 200.0);
-
         let escalator = spawn_escalator(
             commands,
-            Handle::default(),
-            escalator_transform,
-            escalator_box,
+            escalator_handle,
+            t(0.0, 0.0),
+            Vec2::new(200.0, 200.0),
         );
 
-        let step_box = Vec2::new(50.0, 50.0);
-        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+        for (step_transform, arm) in
+            steps(t(0.0, 0.0), Vec2::new(200.0, 200.0), Vec2::new(50.0, 50.0)).iter()
+        {
             spawn_step(
                 commands,
-                Handle::default(),
+                step_handle.clone_weak(),
                 escalator,
-                step_transform,
-                step_box,
+                *step_transform,
+                Vec2::new(50.0, 50.0),
                 arm.clone(),
             );
         }
 
         spawn_ground(
             commands,
-            Handle::default(),
-            Vec2::new(300.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+            ground_handle.clone_weak(),
+            Vec2::new(100.0, 100.0),
+            t(0.0, -150.0),
         );
 
-        spawn_player(
+        spawn_ground(
             commands,
-            Handle::default(),
+            ground_handle.clone_weak(),
+            Vec2::new(200.0, 200.0),
+            t(-200.0, 0.0),
+        );
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+            t(-75.0, 125.0),
         );
     }
 }
@@ -1296,7 +1305,6 @@ fn test_right(
     }
 
     if steps.get(entity).is_ok() {
-
         match propagation_results.get(&entity) {
             Some(propagation) => {
                 return Some(propagation.to_velocity().x);
@@ -1309,7 +1317,8 @@ fn test_right(
                     .clone()
                     .expect("step IV")
                     .intrinsic
-                    .map(|intrinsic| intrinsic.x)            }
+                    .map(|intrinsic| intrinsic.x)
+            }
         }
     }
 
