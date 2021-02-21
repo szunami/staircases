@@ -650,10 +650,6 @@ fn velocity_propagation(
 
     for (entity, intrinsic_velocity) in order_query.iter() {
         if let Some(propagation) = intrinsic_velocity.0.clone() {
-            if actives.get(entity).is_err() {
-                continue;
-            }
-
             let mut already_visited: HashSet<Entity> = HashSet::new();
 
             propagate_velocity(
@@ -838,8 +834,6 @@ fn propagate_velocity(
             }
         }
     }
-
-    //push!
 
     if actives.get(entity).is_ok() {
         if intrinsic_velocity.x > 0.0 {
