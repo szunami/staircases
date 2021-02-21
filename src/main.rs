@@ -10,6 +10,7 @@ fn main() {
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         // .add_system(framerate.system())
+        .add_system(update_step_arm.system())
         // reset IV
         .add_system(reset_intrinsic_velocity.system())
         // build edge graph
@@ -26,7 +27,6 @@ fn main() {
         // reset velocity
         // for each IV, in order of ascending y, propagate
         .add_system(update_position.system())
-        .add_system(update_step_arm.system())
         .run();
 }
 
@@ -48,7 +48,7 @@ struct Step {
     escalator: Entity,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum Arm {
     A,
     B,
@@ -151,32 +151,41 @@ fn setup(
     let _step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        spawn_player(
-            commands,
-            Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-        );
+        let escalator_transform = Transform::from_translation(Vec3::zero());
+                let escalator_box = Vec2::new(200.0, 200.0);
 
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(100.0, 50.0),
-            Transform::from_translation(Vec3::new(0.0, -50.0, 0.0)),
-        );
+                let escalator = spawn_escalator(
+                    commands,
+                    Handle::default(),
+                    escalator_transform,
+                    escalator_box,
+                );
 
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(50.0, 50.0),
-            Transform::from_translation(Vec3::new(150.0, -50.0, 0.0)),
-        );
-        spawn_ground(
-            commands,
-            Handle::default(),
-            Vec2::new(1000.0, 50.0),
-            Transform::from_translation(Vec3::new(150.0, -100.0, 0.0)),
-        );
+                let step_box = Vec2::new(50.0, 50.0);
+                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+                    spawn_step(
+                        commands,
+                        Handle::default(),
+                        escalator,
+                        step_transform,
+                        step_box,
+                        arm.clone(),
+                    );
+                }
+
+                spawn_ground(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(300.0, 50.0),
+                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+                );
+
+                spawn_player(
+                    commands,
+                    Handle::default(),
+                    Vec2::new(50.0, 50.0),
+                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+                );
     }
 }
 
@@ -217,7 +226,9 @@ fn spawn_step(
     size: Vec2,
     arm: Arm,
 ) -> Entity {
-    commands
+
+    if arm != Arm::B {
+        commands
         .spawn(SpriteBundle {
             material,
             transform,
@@ -231,6 +242,23 @@ fn spawn_step(
         .with(IntrinsicVelocity(None))
         .current_entity()
         .expect("spawned step")
+    } else {
+        commands
+        .spawn(SpriteBundle {
+            material,
+            transform,
+            sprite: Sprite::new(size),
+            ..Default::default()
+        })
+        .with(BoundingBox(size))
+        .with(Step { arm, escalator })
+        .with(Velocity(None))
+        .with(IntrinsicVelocity(None))
+        .current_entity()
+        .expect("spawned step") 
+    }
+
+
 }
 
 fn spawn_ground(
@@ -425,10 +453,11 @@ fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
 }
 
 fn update_step_arm(
-    mut steps: Query<(&mut Step, &BoundingBox, &Transform)>,
+    commands: &mut Commands,
+    mut steps: Query<(Entity, &mut Step, &BoundingBox, &Transform)>,
     escalators: Query<(&Escalator, &BoundingBox, &Transform)>,
 ) {
-    for (mut step, step_box, step_transform) in steps.iter_mut() {
+    for (step_entity, mut step, step_box, step_transform) in steps.iter_mut() {
         let (_escalator, escalator_box, escalator_transform) =
             escalators.get(step.escalator).expect("fetch escalator");
 
@@ -444,11 +473,13 @@ fn update_step_arm(
             Arm::A => {
                 if step_bottom < escalator_top - 2.0 * step_box.0.y {
                     step.arm = Arm::B;
+                    commands.remove_one::<ActiveBoundingBox>(step_entity);
                 }
             }
             Arm::B => {
                 if (step_bottom - escalator_bottom).abs() < std::f32::EPSILON {
                     step.arm = Arm::C;
+                    commands.insert_one(step_entity, ActiveBoundingBox);
                 }
             }
             Arm::C => {
@@ -703,6 +734,8 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         propagation_results,
+                        intrinsic_velocities,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
@@ -836,6 +869,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         &actives,
+                        intrinsic_velocities
                     );
                 }
             }
@@ -853,6 +887,7 @@ fn propagate_velocity(
                         grounds,
                         steps,
                         &actives,
+                        intrinsic_velocities
                     );
                 }
             }
@@ -868,6 +903,8 @@ fn propagate_velocity(
                     propagation_results,
                     grounds,
                     steps,
+                    intrinsic_velocities,
+                    actives
                 );
             }
         }
@@ -885,6 +922,7 @@ fn x_push(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
     actives: &Query<&ActiveBoundingBox>,
+    ivs: &Query<&IntrinsicVelocity>
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -907,6 +945,8 @@ fn x_push(
                         grounds,
                         steps,
                         propagation_results,
+                        ivs,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
@@ -989,6 +1029,7 @@ fn x_push(
                         grounds,
                         steps,
                         actives,
+                        ivs
                     );
                 }
             }
@@ -1006,6 +1047,7 @@ fn x_push(
                         grounds,
                         steps,
                         actives,
+                        ivs
                     );
                 }
             }
@@ -1022,6 +1064,8 @@ fn x_push(
                     propagation_results,
                     grounds,
                     steps,
+                    ivs,
+                    actives
                 )
             }
         }
@@ -1036,6 +1080,8 @@ fn carry(
     propagation_results: &mut HashMap<Entity, Propagation>,
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
+    ivs: &Query<&IntrinsicVelocity>,
+    actives: &Query<&ActiveBoundingBox>,
 ) {
     if grounds.get(entity).is_ok() {
         return;
@@ -1090,6 +1136,8 @@ fn carry(
                         grounds,
                         steps,
                         propagation_results,
+                        ivs,
+                        actives
                     ),
                 ) {
                     (None, None) => {}
@@ -1166,9 +1214,15 @@ fn test_left(
     grounds: &Query<&Ground>,
     steps: &Query<&Step>,
     propagation_results: &mut HashMap<Entity, Propagation>,
+    ivs: &Query<&IntrinsicVelocity>,
+    actives: &Query<&ActiveBoundingBox>,
 ) -> Option<f32> {
     if grounds.get(entity).is_ok() {
         return Some(0.0);
+    }
+
+    if actives.get(entity).is_err() {
+        return None;
     }
 
     if steps.get(entity).is_ok() {
@@ -1179,7 +1233,8 @@ fn test_left(
                 return Some(propagation.to_velocity().x);
             }
             None => {
-                return Some(0.0);
+                let x = ivs.get(entity).expect("step lookup").clone();
+                return x.0.clone().expect("step IV").intrinsic.map(|x| x.y);
             }
         }
     }
@@ -1196,6 +1251,8 @@ fn test_left(
                     grounds,
                     steps,
                     propagation_results,
+                    ivs,
+                    actives
                 ),
             ) {
                 (None, None) => {}
@@ -1823,7 +1880,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn player_atop_escalator() {
         helper(
             |commands, _resources| {
