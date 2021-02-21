@@ -30,6 +30,7 @@ fn main() {
         .run();
 }
 
+#[allow(dead_code)]
 fn framerate(diagnostics: Res<Diagnostics>) {
     if let Some(fps) = diagnostics.get(bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS) {
         dbg!(fps.average());
@@ -205,6 +206,7 @@ fn spawn_escalator(
         .expect("escalator")
 }
 
+#[allow(dead_code)]
 fn spawn_step(
     commands: &mut Commands,
     material: Handle<ColorMaterial>,
@@ -245,6 +247,7 @@ fn spawn_ground(
         .with(Ground);
 }
 
+#[allow(dead_code)]
 fn spawn_player(
     commands: &mut Commands,
     material: Handle<ColorMaterial>,
@@ -264,6 +267,7 @@ fn spawn_player(
         .with(IntrinsicVelocity(None));
 }
 
+#[allow(dead_code)]
 fn spawn_crate(
     commands: &mut Commands,
     material: Handle<ColorMaterial>,
@@ -285,6 +289,7 @@ fn spawn_crate(
         .expect("Spawned crate")
 }
 
+#[allow(dead_code)]
 fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
     let mut result = vec![];
 
