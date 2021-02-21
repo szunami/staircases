@@ -192,6 +192,7 @@ fn setup(
     }
 }
 
+#[allow(dead_code)]
 fn spawn_escalator(
     commands: &mut Commands,
     texture: Handle<TextureAtlas>,
