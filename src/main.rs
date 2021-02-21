@@ -752,7 +752,6 @@ fn propagate_velocity(
                 ) {
                     (None, None) => {}
                     (None, Some(new_bound)) => {
-                        dbg!("right bound", new_bound);
                         right_x_bound = Some(new_bound);
                     }
                     (Some(_), None) => {}
@@ -1112,7 +1111,6 @@ fn carry(
     let mut left_x_bound = None;
 
     if carry_velocity.x < 0.0 {
-        dbg!("looking for left bound");
         if let Some(left_entities) = adjacency_graph.lefts.get(&entity) {
             for left_entity in left_entities {
                 match (
@@ -1137,8 +1135,6 @@ fn carry(
                     }
                 }
             }
-
-            dbg!(left_x_bound);
         }
     }
 
@@ -1210,26 +1206,24 @@ fn test_left(
     if grounds.get(entity).is_ok() {
         return Some(0.0);
     }
-
-    dbg!(actives.get(entity));
-
     if actives.get(entity).is_err() {
         return None;
     }
 
     if steps.get(entity).is_ok() {
-        dbg!("testing left");
-
-        // This seems order dependent...
-        // If we find a step, return it's velocity
         match propagation_results.get(&entity) {
             Some(propagation) => {
                 return Some(propagation.to_velocity().x);
             }
             None => {
-                let x = ivs.get(entity).expect("step lookup").clone();
-                dbg!(x);
-                return x.0.clone().expect("step IV").intrinsic.map(|x| x.x);
+                return ivs
+                    .get(entity)
+                    .expect("step iv lookup")
+                    .0
+                    .clone()
+                    .expect("step IV")
+                    .intrinsic
+                    .map(|intrinsic| intrinsic.x)
             }
         }
     }
