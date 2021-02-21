@@ -460,7 +460,7 @@ fn update_step_arm(
 
         match step.arm {
             Arm::A => {
-                if step_bottom < escalator_top - 2.0 * step_box.0.y {
+                if (step_bottom - (escalator_top - 2.0 * step_box.0.y)) < std::f32::EPSILON {
                     step.arm = Arm::B;
                     commands.remove_one::<ActiveBoundingBox>(step_entity);
                 }
