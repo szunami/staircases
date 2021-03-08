@@ -14,7 +14,7 @@ fn main() {
         // reset IV
         .add_system(reset_intrinsic_velocity.system())
         // build edge graph
-        .add_system(build_adjacency_graph.system())
+        // .add_system(build_adjacency_graph.system())
         // assign step IV
         .add_system(step_intrinsic_velocity.system())
         // assign player IV
@@ -23,8 +23,9 @@ fn main() {
         .add_system(falling_intrinsic_velocity.system())
         // propagation
         .add_system(reset_velocity.system())
-        .add_system(velocity_propagation.system())
+        // .add_system(velocity_propagation.system())
         // reset velocity
+        .add_system(process_collisions.system())
         // for each IV, in order of ascending y, propagate
         .add_system(update_position.system())
         .run();
@@ -158,66 +159,18 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        let escalator = spawn_escalator(
-            commands,
-            escalator_handle,
-            t(0.0, 0.0),
-            Vec2::new(200.0, 200.0),
-        );
-
-        for (step_transform, arm) in
-            steps(t(0.0, 0.0), Vec2::new(200.0, 200.0), Vec2::new(50.0, 50.0)).iter()
-        {
-            spawn_step(
-                commands,
-                step_handle.clone_weak(),
-                escalator,
-                *step_transform,
-                Vec2::new(50.0, 50.0),
-                arm.clone(),
-            );
-        }
-
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
-            Vec2::new(100.0, 100.0),
-            t(0.0, -150.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(100.0, 100.0),
-            t(150.0, -100.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(200.0, 200.0),
-            t(-200.0, 0.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-250.0, 175.0),
+            Vec2::new(600.0, 100.0),
+            t(0.0, -100.0),
         );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
-            Vec2::new(200.0, 50.0),
-            t(-75.0, 125.0),
-        );
-
-        spawn_player(
-            commands,
-            player_handle,
             Vec2::new(50.0, 50.0),
-            t(50.0, 100.0),
+            t(0.0, 200.0),
         );
     }
 }
@@ -457,16 +410,98 @@ fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
     }
 }
 
-fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
+struct BoundingBoxTransform(Transform, BoundingBox);
+
+impl BoundingBoxTransform {
+    fn left(&self) -> f32 {
+        self.0.translation.x - self.1 .0.x / 2.0
+    }
+
+    fn right(&self) -> f32 {
+        self.0.translation.x + self.1 .0.x / 2.0
+    }
+
+    fn top(&self) -> f32 {
+        self.0.translation.y + self.1 .0.y / 2.0
+    }
+
+    fn bottom(&self) -> f32 {
+        self.0.translation.y - self.1 .0.y / 2.0
+    }
+}
+
+fn process_collisions(
+    q: Query<(Entity, &Transform, &BoundingBox)>,
+    mut r: Query<&mut IntrinsicVelocity>,
+) {
+    for (entity_a, xform_a, bb_a) in q.iter() {
+        for (entity_b, xform_b, bb_b) in q.iter() {
+            let a = BoundingBoxTransform(*xform_a, bb_a.clone());
+
+            let b = BoundingBoxTransform(*xform_b, bb_b.clone());
+
+            // y check
+
+            // maybe include epsilon in check here?
+            if a.left() < b.left() && a.right() > b.left()
+                || b.left() < a.left() && b.right() > a.left()
+            {
+
+                if a.bottom() < b.top() && a.bottom() > b.bottom() {
+                    // a is falling into b; push a up
+                    let displacement = b.top() - a.bottom();
+                    dbg!(displacement);
+
+                    match r.get_mut(entity_a) {
+                        Ok(mut iv) => {
+
+                            // ???
+                            dbg!(&*iv);
+
+                            let mut new_intrinsic = 0.0;
+
+
+                            match &iv.0 {
+                                Some(prop) => {
+                                    match prop.intrinsic {
+                                        Some(mut intrinsic) => {
+                                            new_intrinsic = intrinsic.y + displacement;
+                                        }
+                                        None => {}
+                                    }
+
+                                }
+                                None => {}
+                            }
+
+                            *iv = IntrinsicVelocity(Some(Propagation::default()));
+
+                            dbg!(iv);
+
+                        }
+                        Err(_) => {}
+                    }
+
+                } else if b.bottom() < a.top() && b.bottom() > a.bottom() {
+
+                }
+
+
+
+            }
+        }
+    }
+}
+
+fn update_position(mut query: Query<(&IntrinsicVelocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
-        match maybe_velocity.0 {
-            Some(velocity) => {
+        match maybe_velocity.0.to_owned() {
+            Some(prop) => {
+                let velocity = prop.to_velocity();
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
             }
-            None => {
-                // dbg!("Shouldn't happen in the future!");
-            }
+            None => {}
         }
     }
 }
