@@ -22,7 +22,7 @@ fn main() {
         // assign falling IV
         .add_system(falling_intrinsic_velocity.system())
         // propagation
-        .add_system(reset_velocity.system())
+        // .add_system(reset_velocity.system())
         // .add_system(velocity_propagation.system())
         // reset velocity
         .add_system(process_collisions.system())
@@ -171,6 +171,14 @@ fn setup(
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             t(0.0, 200.0),
+        );
+
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, 300.0),
         );
     }
 }
@@ -379,32 +387,20 @@ fn player_intrinsic_velocity(
     }
 }
 
-fn step_intrinsic_velocity(mut query: Query<(&Step, &mut IntrinsicVelocity)>) {
-    for (step, mut intrinsic_velocity) in query.iter_mut() {
+fn step_intrinsic_velocity(mut query: Query<(&Step, &mut Velocity)>) {
+    for (step, mut velocity) in query.iter_mut() {
         match step.arm {
             Arm::A => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                    intrinsic: Some(Vec2::new(0.0, -1.0)),
-                    ..Propagation::default()
-                }));
+                *velocity = Velocity(Some(Vec2::new(0.0, -1.0)));
             }
             Arm::B => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                    intrinsic: Some(Vec2::new(1.0, -1.0)),
-                    ..Propagation::default()
-                }));
+                *velocity = Velocity(Some(Vec2::new(1.0, -1.0)));
             }
             Arm::C => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                    intrinsic: Some(Vec2::new(1.0, 0.0)),
-                    ..Propagation::default()
-                }));
+                *velocity = Velocity(Some(Vec2::new(1.0, 0.0)));
             }
             Arm::D => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                    intrinsic: Some(Vec2::new(-1.0, 1.0)),
-                    ..Propagation::default()
-                }));
+                *velocity = Velocity(Some(Vec2::new(-1.0, 1.0)));
             }
         }
     }
@@ -430,74 +426,61 @@ impl BoundingBoxTransform {
     }
 }
 
-fn process_collisions(
-    q: Query<(Entity, &Transform, &BoundingBox)>,
-    mut r: Query<&mut IntrinsicVelocity>,
-) {
+fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query<&mut Velocity>) {
     for (entity_a, xform_a, bb_a) in q.iter() {
+        let a = BoundingBoxTransform(*xform_a, bb_a.clone());
+
         for (entity_b, xform_b, bb_b) in q.iter() {
-            let a = BoundingBoxTransform(*xform_a, bb_a.clone());
+
+            if entity_a == entity_b {
+                continue;
+            }
+
 
             let b = BoundingBoxTransform(*xform_b, bb_b.clone());
 
             // y check
 
             // maybe include epsilon in check here?
-            if a.left() < b.left() && a.right() > b.left()
-                || b.left() < a.left() && b.right() > a.left()
+            if a.left() <= b.left() && a.right() > b.left()
+                || b.left() <= a.left() && b.right() > a.left()
             {
-
                 if a.bottom() < b.top() && a.bottom() > b.bottom() {
                     // a is falling into b; push a up
                     let displacement = b.top() - a.bottom();
                     dbg!(displacement);
 
+
                     match r.get_mut(entity_a) {
                         Ok(mut iv) => {
-
-                            // ???
-                            dbg!(&*iv);
-
-                            let mut new_intrinsic = 0.0;
-
-
-                            match &iv.0 {
-                                Some(prop) => {
-                                    match prop.intrinsic {
-                                        Some(mut intrinsic) => {
-                                            new_intrinsic = intrinsic.y + displacement;
-                                        }
-                                        None => {}
-                                    }
-
+                            match iv.0 {
+                                Some(v) => {
+                                    *iv = Velocity(Some(Vec2::new(v.x, v.y + displacement)))
                                 }
-                                None => {}
+                                None => {
+                                    // TODO: carry here?
+                                    *iv = Velocity(Some(Vec2::new(0.0, displacement)));
+                                }
                             }
-
-                            *iv = IntrinsicVelocity(Some(Propagation::default()));
-
-                            dbg!(iv);
 
                         }
                         Err(_) => {}
                     }
 
+                    dbg!(r.get_mut(entity_a));
+
                 } else if b.bottom() < a.top() && b.bottom() > a.bottom() {
-
+                    dbg!("need to push b up");
                 }
-
-
-
             }
         }
     }
 }
 
-fn update_position(mut query: Query<(&IntrinsicVelocity, &mut Transform)>) {
+fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0.to_owned() {
-            Some(prop) => {
-                let velocity = prop.to_velocity();
+            Some(velocity) => {
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
             }
@@ -588,9 +571,9 @@ fn is_beside(
             || (right_bottom <= left_bottom && left_bottom < right_top))
 }
 
-fn reset_intrinsic_velocity(mut query: Query<&mut IntrinsicVelocity>) {
+fn reset_intrinsic_velocity(mut query: Query<&mut Velocity>) {
     for mut intrinsic_velocity in query.iter_mut() {
-        *intrinsic_velocity = IntrinsicVelocity(None);
+        *intrinsic_velocity = Velocity(None);
     }
 }
 
@@ -675,29 +658,21 @@ fn falling_intrinsic_velocity(
     adjacency_graph: Res<AdjacencyGraph>,
 
     mut query: Query<
-        (Entity, &mut IntrinsicVelocity),
+        (Entity, &mut Velocity),
         (Without<Player>, Without<Ground>, Without<Step>),
     >,
 ) {
-    for (entity, mut intrinsic_velocity) in query.iter_mut() {
+    for (entity, mut velocity) in query.iter_mut() {
         match adjacency_graph.bottoms.get(&entity) {
             Some(bottoms) => {
                 if bottoms.is_empty() {
-                    *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                        intrinsic: Some(Vec2::new(0.0, -1.0)),
-                        ..Propagation::default()
-                    }));
+                    *velocity = Velocity(Some(Vec2::new(0.0, -1.0)));
                 }
             }
             None => {
-                *intrinsic_velocity = IntrinsicVelocity(Some(Propagation {
-                    intrinsic: Some(Vec2::new(0.0, -1.0)),
-                    ..Propagation::default()
-                }));
+                *velocity = Velocity(Some(Vec2::new(0.0, -1.0)));
             }
         }
-
-        if !adjacency_graph.bottoms.get(&entity).is_none() {}
     }
 }
 
