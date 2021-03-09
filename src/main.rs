@@ -184,7 +184,7 @@ fn setup(
             commands,
             player_handle.clone_weak(),
             Vec2::new(50.0, 100.0),
-            t(-100.0, 300.0)
+            t(-100.0, 300.0),
         );
     }
 }
@@ -442,29 +442,16 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
 
             // y check
 
+            let mut y_displacement = None;
+            let mut x_displacement = None;
+
             // maybe include epsilon in check here?
             if a.left() <= b.left() && a.right() > b.left()
                 || b.left() <= a.left() && b.right() > a.left()
             {
                 if a.bottom() < b.top() && a.bottom() > b.bottom() {
                     // a is falling into b; push a up
-                    let displacement = b.top() - a.bottom();
-                    dbg!(displacement);
-
-                    match r.get_mut(entity_a) {
-                        Ok(mut iv) => {
-                            match iv.0 {
-                                Some(v) => *iv = Velocity(Some(Vec2::new(v.x, v.y + displacement))),
-                                None => {
-                                    // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(0.0, displacement)));
-                                }
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                } else if b.bottom() < a.top() && b.bottom() > a.bottom() {
-                    // gets handled in the reverse loop
+                    y_displacement = Some(b.top() - a.bottom());
                 }
             }
 
@@ -476,19 +463,40 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                 if a.right() > b.left() && a.right() < b.right() {
                     // a is pushing into b from the left
                     dbg!("a pushing b from left");
-                    let displacement = a.right() - b.left();
+                    x_displacement = Some(a.right() - b.left());
 
                     // divide displacement between a and b
+                }
+            }
 
+            match (x_displacement, y_displacement) {
+                (None, None) => {}
+                (None, Some(y_displacement)) => {
                     match r.get_mut(entity_a) {
                         Ok(mut iv) => {
                             match iv.0 {
                                 Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x - displacement / 2.0, v.y)))
+                                    *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
                                 }
                                 None => {
                                     // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(-displacement / 2.0, 0.0)));
+                                    *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                }
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+                (Some(x_displacement), None) => {
+                    match r.get_mut(entity_a) {
+                        Ok(mut iv) => {
+                            match iv.0 {
+                                Some(v) => {
+                                    *iv = Velocity(Some(Vec2::new(v.x - x_displacement / 2.0, v.y)))
+                                }
+                                None => {
+                                    // TODO: carry here?
+                                    *iv = Velocity(Some(Vec2::new(-x_displacement / 2.0, 0.0)));
                                 }
                             }
                         }
@@ -499,15 +507,69 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                         Ok(mut iv) => {
                             match iv.0 {
                                 Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x + displacement / 2.0, v.y)))
+                                    *iv = Velocity(Some(Vec2::new(v.x + x_displacement / 2.0, v.y)))
                                 }
                                 None => {
                                     // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(displacement / 2.0, 0.0)));
+                                    *iv = Velocity(Some(Vec2::new(x_displacement / 2.0, 0.0)));
                                 }
                             }
                         }
                         Err(_) => {}
+                    }
+                }
+                (Some(x_displacement), Some(y_displacement)) => {
+                    if x_displacement.abs() > y_displacement.abs() {
+                        match r.get_mut(entity_a) {
+                            Ok(mut iv) => {
+                                match iv.0 {
+                                    Some(v) => {
+                                        *iv = Velocity(Some(Vec2::new(
+                                            v.x - x_displacement / 2.0,
+                                            v.y,
+                                        )))
+                                    }
+                                    None => {
+                                        // TODO: carry here?
+                                        *iv = Velocity(Some(Vec2::new(-x_displacement / 2.0, 0.0)));
+                                    }
+                                }
+                            }
+                            Err(_) => {}
+                        }
+
+                        match r.get_mut(entity_b) {
+                            Ok(mut iv) => {
+                                match iv.0 {
+                                    Some(v) => {
+                                        *iv = Velocity(Some(Vec2::new(
+                                            v.x + x_displacement / 2.0,
+                                            v.y,
+                                        )))
+                                    }
+                                    None => {
+                                        // TODO: carry here?
+                                        *iv = Velocity(Some(Vec2::new(x_displacement / 2.0, 0.0)));
+                                    }
+                                }
+                            }
+                            Err(_) => {}
+                        }
+                    } else {
+                        match r.get_mut(entity_a) {
+                            Ok(mut iv) => {
+                                match iv.0 {
+                                    Some(v) => {
+                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                    }
+                                    None => {
+                                        // TODO: carry here?
+                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                    }
+                                }
+                            }
+                            Err(_) => {}
+                        }
                     }
                 }
             }
