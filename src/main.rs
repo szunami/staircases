@@ -173,19 +173,19 @@ fn setup(
             t(0.0, 200.0),
         );
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, 300.0),
-        );
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(0.0, 300.0),
+        // );
 
-        spawn_player(
-            commands,
-            player_handle.clone_weak(),
-            Vec2::new(50.0, 100.0),
-            t(-100.0, 300.0),
-        );
+        // spawn_player(
+        //     commands,
+        //     player_handle.clone_weak(),
+        //     Vec2::new(50.0, 100.0),
+        //     t(-100.0, 300.0),
+        // );
     }
 }
 
@@ -434,7 +434,7 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
         let a = BoundingBoxTransform(*xform_a, bb_a.clone());
 
         for (entity_b, xform_b, bb_b) in q.iter() {
-            if entity_a == entity_b {
+            if entity_a >= entity_b {
                 continue;
             }
 
@@ -446,45 +446,76 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
             let mut x_displacement = None;
 
             // maybe include epsilon in check here?
-            if a.left() <= b.left() && a.right() > b.left()
-                || b.left() <= a.left() && b.right() > a.left()
+            if a.left() < b.left() && b.left() < a.right()
+                || b.left() < a.left() && a.left() < b.right()
             {
                 if a.bottom() < b.top() && a.bottom() > b.bottom() {
                     // a is falling into b; push a up
                     y_displacement = Some(b.top() - a.bottom());
                 }
+
+                if b.bottom() < a.top() && b.bottom() > a.bottom() {
+                    // b is falling into a; push b up
+                    y_displacement = Some(a.top() - b.bottom());
+                }
             }
 
             // x check
 
-            if a.bottom() <= b.bottom() && a.top() > b.bottom()
-                || b.bottom() <= a.bottom() && b.top() > a.top()
+            if a.bottom() < b.bottom() && b.bottom() < a.top()
+                || b.bottom() < a.bottom() && a.bottom() < b.top()
             {
-                if a.right() > b.left() && a.right() < b.right() {
+                if b.left() < a.right() && a.right() < b.right() {
                     // a is pushing into b from the left
-                    dbg!("a pushing b from left");
                     x_displacement = Some(a.right() - b.left());
 
                     // divide displacement between a and b
                 }
+
+                if a.left() < b.right() && b.right() < a.right() {
+                    // b is pushing into a from the left
+                    x_displacement = Some(b.right() - a.left());
+                }
             }
+
+            dbg!(x_displacement, y_displacement);
 
             match (x_displacement, y_displacement) {
                 (None, None) => {}
                 (None, Some(y_displacement)) => {
-                    match r.get_mut(entity_a) {
-                        Ok(mut iv) => {
-                            match iv.0 {
-                                Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
-                                }
-                                None => {
-                                    // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+
+                    // move up whichever has a higher bottom (???)
+
+                    if a.bottom() > b.bottom() {
+                        match r.get_mut(entity_a) {
+                            Ok(mut iv) => {
+                                match iv.0 {
+                                    Some(v) => {
+                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                    }
+                                    None => {
+                                        // TODO: carry here?
+                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                    }
                                 }
                             }
+                            Err(_) => {}
                         }
-                        Err(_) => {}
+                    } else {
+                        match r.get_mut(entity_b) {
+                            Ok(mut iv) => {
+                                match iv.0 {
+                                    Some(v) => {
+                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                    }
+                                    None => {
+                                        // TODO: carry here?
+                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                    }
+                                }
+                            }
+                            Err(_) => {}
+                        }
                     }
                 }
                 (Some(x_displacement), None) => {
@@ -519,7 +550,8 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                     }
                 }
                 (Some(x_displacement), Some(y_displacement)) => {
-                    if x_displacement.abs() > y_displacement.abs() {
+                    // choose whichever is smaller
+                    if x_displacement.abs() < y_displacement.abs() {
                         match r.get_mut(entity_a) {
                             Ok(mut iv) => {
                                 match iv.0 {
@@ -556,25 +588,44 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                             Err(_) => {}
                         }
                     } else {
-                        match r.get_mut(entity_a) {
-                            Ok(mut iv) => {
-                                match iv.0 {
-                                    Some(v) => {
-                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
-                                    }
-                                    None => {
-                                        // TODO: carry here?
-                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                    // move up whichever has a higher bottom (???)
+                        if a.bottom() > b.bottom() {
+                            match r.get_mut(entity_a) {
+                                Ok(mut iv) => {
+                                    match iv.0 {
+                                        Some(v) => {
+                                            *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                        }
+                                        None => {
+                                            // TODO: carry here?
+                                            *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                        }
                                     }
                                 }
+                                Err(_) => {}
                             }
-                            Err(_) => {}
+                        } else {
+                            match r.get_mut(entity_b) {
+                                Ok(mut iv) => {
+                                    match iv.0 {
+                                        Some(v) => {
+                                            *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                        }
+                                        None => {
+                                            // TODO: carry here?
+                                            *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
+                                        }
+                                    }
+                                }
+                                Err(_) => {}
+                            }
                         }
                     }
                 }
             }
         }
     }
+    dbg!("End of the line");
 }
 
 fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
