@@ -173,12 +173,18 @@ fn setup(
             t(0.0, 200.0),
         );
 
-
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             t(0.0, 300.0),
+        );
+
+        spawn_player(
+            commands,
+            player_handle.clone_weak(),
+            Vec2::new(50.0, 100.0),
+            t(-100.0, 300.0)
         );
     }
 }
@@ -364,7 +370,7 @@ fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec
 fn player_intrinsic_velocity(
     keyboard_input: Res<Input<KeyCode>>,
     adjacency_graph: Res<AdjacencyGraph>,
-    mut query: Query<(&Player, Entity, &mut IntrinsicVelocity)>,
+    mut query: Query<(&Player, Entity, &mut Velocity)>,
 ) {
     for (_player, entity, mut velocity) in query.iter_mut() {
         let mut x_velocity = 0.0;
@@ -380,10 +386,7 @@ fn player_intrinsic_velocity(
             None => -1.0,
         };
 
-        *velocity = IntrinsicVelocity(Some(Propagation {
-            intrinsic: Some(Vec2::new(x_velocity, y_velocity)),
-            ..Propagation::default()
-        }));
+        *velocity = Velocity(Some(Vec2::new(x_velocity, y_velocity)));
     }
 }
 
@@ -431,11 +434,9 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
         let a = BoundingBoxTransform(*xform_a, bb_a.clone());
 
         for (entity_b, xform_b, bb_b) in q.iter() {
-
             if entity_a == entity_b {
                 continue;
             }
-
 
             let b = BoundingBoxTransform(*xform_b, bb_b.clone());
 
@@ -450,27 +451,64 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                     let displacement = b.top() - a.bottom();
                     dbg!(displacement);
 
-
                     match r.get_mut(entity_a) {
                         Ok(mut iv) => {
                             match iv.0 {
-                                Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x, v.y + displacement)))
-                                }
+                                Some(v) => *iv = Velocity(Some(Vec2::new(v.x, v.y + displacement))),
                                 None => {
                                     // TODO: carry here?
                                     *iv = Velocity(Some(Vec2::new(0.0, displacement)));
                                 }
                             }
+                        }
+                        Err(_) => {}
+                    }
+                } else if b.bottom() < a.top() && b.bottom() > a.bottom() {
+                    // gets handled in the reverse loop
+                }
+            }
 
+            // x check
+
+            if a.bottom() <= b.bottom() && a.top() > b.bottom()
+                || b.bottom() <= a.bottom() && b.top() > a.top()
+            {
+                if a.right() > b.left() && a.right() < b.right() {
+                    // a is pushing into b from the left
+                    dbg!("a pushing b from left");
+                    let displacement = a.right() - b.left();
+
+                    // divide displacement between a and b
+
+                    match r.get_mut(entity_a) {
+                        Ok(mut iv) => {
+                            match iv.0 {
+                                Some(v) => {
+                                    *iv = Velocity(Some(Vec2::new(v.x - displacement / 2.0, v.y)))
+                                }
+                                None => {
+                                    // TODO: carry here?
+                                    *iv = Velocity(Some(Vec2::new(-displacement / 2.0, 0.0)));
+                                }
+                            }
                         }
                         Err(_) => {}
                     }
 
-                    dbg!(r.get_mut(entity_a));
-
-                } else if b.bottom() < a.top() && b.bottom() > a.bottom() {
-                    dbg!("need to push b up");
+                    match r.get_mut(entity_b) {
+                        Ok(mut iv) => {
+                            match iv.0 {
+                                Some(v) => {
+                                    *iv = Velocity(Some(Vec2::new(v.x + displacement / 2.0, v.y)))
+                                }
+                                None => {
+                                    // TODO: carry here?
+                                    *iv = Velocity(Some(Vec2::new(displacement / 2.0, 0.0)));
+                                }
+                            }
+                        }
+                        Err(_) => {}
+                    }
                 }
             }
         }
@@ -657,10 +695,7 @@ fn build_adjacency_graph(
 fn falling_intrinsic_velocity(
     adjacency_graph: Res<AdjacencyGraph>,
 
-    mut query: Query<
-        (Entity, &mut Velocity),
-        (Without<Player>, Without<Ground>, Without<Step>),
-    >,
+    mut query: Query<(Entity, &mut Velocity), (Without<Player>, Without<Ground>, Without<Step>)>,
 ) {
     for (entity, mut velocity) in query.iter_mut() {
         match adjacency_graph.bottoms.get(&entity) {
