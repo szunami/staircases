@@ -159,6 +159,8 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
+
+
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
@@ -173,19 +175,19 @@ fn setup(
             t(0.0, 200.0),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 300.0),
-        // );
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, 260.0),
+        );
 
-        // spawn_player(
-        //     commands,
-        //     player_handle.clone_weak(),
-        //     Vec2::new(50.0, 100.0),
-        //     t(-100.0, 300.0),
-        // );
+        spawn_player(
+            commands,
+            player_handle.clone_weak(),
+            Vec2::new(50.0, 100.0),
+            t(-100.0, 300.0),
+        );
     }
 }
 
@@ -446,8 +448,8 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
             let mut x_displacement = None;
 
             // maybe include epsilon in check here?
-            if a.left() < b.left() && b.left() < a.right()
-                || b.left() < a.left() && a.left() < b.right()
+            if a.left() <= b.left() && b.left() < a.right()
+                || b.left() <= a.left() && a.left() < b.right()
             {
                 if a.bottom() < b.top() && a.bottom() > b.bottom() {
                     // a is falling into b; push a up
@@ -462,8 +464,8 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
 
             // x check
 
-            if a.bottom() < b.bottom() && b.bottom() < a.top()
-                || b.bottom() < a.bottom() && a.bottom() < b.top()
+            if a.bottom() <= b.bottom() && b.bottom() < a.top()
+                || b.bottom() <= a.bottom() && a.bottom() < b.top()
             {
                 if b.left() < a.right() && a.right() < b.right() {
                     // a is pushing into b from the left
@@ -474,7 +476,7 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
 
                 if a.left() < b.right() && b.right() < a.right() {
                     // b is pushing into a from the left
-                    x_displacement = Some(b.right() - a.left());
+                    x_displacement = Some(a.left() - b.right());
                 }
             }
 
