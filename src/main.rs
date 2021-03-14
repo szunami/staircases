@@ -1,7 +1,6 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
-use itertools::{Itertools, Permutations};
 
 fn main() {
     App::build()
@@ -167,63 +166,75 @@ fn setup(
             t(0.0, -100.0),
         );
 
-        spawn_ground(
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(0.0, 200.0),
+        // );
+
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(0.0, 260.0),
+        // );
+
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(-100.0, 400.0),
+        // );
+
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(0.0, 400.0),
+        // );
+
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(50.0, 400.0),
+        // );
+
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(100.0, 400.0),
+        // );
+
+        // spawn_player(
+        //     commands,
+        //     player_handle.clone_weak(),
+        //     Vec2::new(50.0, 100.0),
+        //     t(-100.0, 300.0),
+        // );
+
+        let escalator_transform = t(50.0, 250.0);
+        let escalator_box = Vec2::new(200.0, 200.0);
+        let escalator = spawn_escalator(
             commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(200.0, -0.0),
+            escalator_handle.clone_weak(),
+            escalator_transform,
+            escalator_box,
         );
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, 200.0),
-        );
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, 260.0),
-        );
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-100.0, 400.0),
-        );
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, 400.0),
-        );
-
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(50.0, 400.0),
-        );
-
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(100.0, 400.0),
-        );
-
-        spawn_player(
-            commands,
-            player_handle.clone_weak(),
-            Vec2::new(50.0, 100.0),
-            t(-100.0, 300.0),
-        );
+        let step_box = Vec2::new(50.0, 50.0);
+        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+            spawn_step(
+                commands,
+                step_handle.clone_weak(),
+                escalator,
+                step_transform,
+                step_box,
+                arm,
+            );
+        }
     }
 }
 
@@ -467,12 +478,12 @@ impl BoundingBoxTransform {
     }
 }
 
-fn try_itertools(
-    q: Query<(Entity, &mut Velocity)>
-) {
-}
+fn try_itertools(q: Query<(Entity, &mut Velocity)>) {}
 
-fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query<&mut Velocity>) {
+fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query<&mut Velocity>,
+
+    steps: Query<&Step>
+) {
     for (entity_a, xform_a, bb_a) in q.iter() {
         let a = BoundingBoxTransform(*xform_a, bb_a.clone());
 
@@ -480,6 +491,23 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
             if entity_a >= entity_b {
                 continue;
             }
+
+            if let Ok(step_a) = steps.get(entity_a) {
+                if step_a.escalator == entity_b {
+                    continue;
+                }
+
+                if let Ok(step_b) = steps.get(entity_b) {
+                    continue;
+                }
+            }
+
+            if let Ok(step) = steps.get(entity_b) {
+                if step.escalator == entity_a {
+                    continue;
+                }
+            }
+
 
             let b = BoundingBoxTransform(*xform_b, bb_b.clone());
 
@@ -529,7 +557,6 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                     // move up whichever has a higher bottom (???)
 
                     if a.bottom() > b.bottom() {
-
                         let tmp = r.get_mut(entity_b).unwrap().clone();
 
                         match r.get_mut(entity_a) {
@@ -537,7 +564,9 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                                 // to carry we want to access b's velocity and transfer it (?)
                                 match iv.0 {
                                     Some(v) => {
-                                        *iv = Velocity(Some(tmp.0.unwrap() + Vec2::new(v.x, v.y + y_displacement)))
+                                        *iv = Velocity(Some(
+                                            tmp.0.unwrap() + Vec2::new(v.x, v.y + y_displacement),
+                                        ))
                                     }
                                     None => {
                                         *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
