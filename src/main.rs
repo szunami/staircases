@@ -1,4 +1,6 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
 
@@ -49,6 +51,11 @@ struct Escalator;
 struct Step {
     arm: Arm,
     escalator: Entity,
+}
+
+struct Track {
+    position: f32,
+    length: f32,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -225,7 +232,9 @@ fn setup(
         );
 
         let step_box = Vec2::new(50.0, 50.0);
-        for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+        for (step_transform, arm, track_position, track_length) in
+            steps(escalator_transform, escalator_box, step_box)
+        {
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
@@ -233,6 +242,8 @@ fn setup(
                 step_transform,
                 step_box,
                 arm,
+                track_position,
+                track_length
             );
         }
     }
@@ -276,6 +287,8 @@ fn spawn_step(
     transform: Transform,
     size: Vec2,
     arm: Arm,
+    track_position: f32,
+    track_length: f32,
 ) -> Entity {
     commands
         .spawn(SpriteBundle {
@@ -286,7 +299,10 @@ fn spawn_step(
         })
         .with(BoundingBox(size))
         .with(ActiveBoundingBox)
-        .with(Step { arm, escalator })
+        .with(Step {
+            arm,
+            escalator,
+        })
         .with(Velocity(None))
         .with(IntrinsicVelocity(None))
         .current_entity()
@@ -356,8 +372,16 @@ fn spawn_crate(
 }
 
 #[allow(dead_code)]
-fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec<(Transform, Arm)> {
+fn steps(
+    escalator_transform: Transform,
+    escalator_box: Vec2,
+    step: Vec2,
+) -> Vec<(Transform, Arm, f32, f32)> {
     let mut result = vec![];
+    let n = (escalator_box.y / step.y) as i32;
+
+    let track_length = (2.0 * (n as f32 - 1.0) * f32::sqrt(2.0) + 2.0) * step.x;
+    let mut track_position = 0.0;
 
     // A
     result.push((
@@ -367,10 +391,13 @@ fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec
             0.0,
         )),
         Arm::A,
+        track_position,
+        track_length
     ));
 
+    track_position += step.x;
+
     // B
-    let n = (escalator_box.y / step.y) as i32;
 
     for index in 0..n - 2 {
         result.push((
@@ -384,7 +411,11 @@ fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec
                 0.0,
             )),
             Arm::B,
-        ))
+            track_position,
+            track_length,
+        ));
+        track_position += step.x;
+
     }
 
     // C
@@ -395,7 +426,11 @@ fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec
             0.0,
         )),
         Arm::C,
+        track_position,
+        track_length,
     ));
+    track_position += step.x;
+
 
     // D
     for index in 0..n - 1 {
@@ -411,7 +446,10 @@ fn steps(escalator_transform: Transform, escalator_box: Vec2, step: Vec2) -> Vec
                 0.0,
             )),
             Arm::D,
+            track_position,
+            track_length,
         ));
+        track_position += step.x;
     }
     result
 }
@@ -480,9 +518,11 @@ impl BoundingBoxTransform {
 
 fn try_itertools(q: Query<(Entity, &mut Velocity)>) {}
 
-fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query<&mut Velocity>,
+fn process_collisions(
+    q: Query<(Entity, &Transform, &BoundingBox)>,
+    mut r: Query<&mut Velocity>,
 
-    steps: Query<&Step>
+    steps: Query<&Step>,
 ) {
     for (entity_a, xform_a, bb_a) in q.iter() {
         let a = BoundingBoxTransform(*xform_a, bb_a.clone());
@@ -507,7 +547,6 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                     continue;
                 }
             }
-
 
             let b = BoundingBoxTransform(*xform_b, bb_b.clone());
 
@@ -704,12 +743,12 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
     dbg!("End of the line");
 }
 
-fn update_position(mut query: Query<(&Velocity, &mut Transform)>) {
+fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0.to_owned() {
             Some(velocity) => {
-                transform.translation.x += velocity.x;
-                transform.translation.y += velocity.y;
+                transform.translation.x += time.delta_seconds() * velocity.x;
+                transform.translation.y += time.delta_seconds() * velocity.y;
             }
             None => {}
         }
