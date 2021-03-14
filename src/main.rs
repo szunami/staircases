@@ -1,6 +1,7 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
+use itertools::{Itertools, Permutations};
 
 fn main() {
     App::build()
@@ -159,13 +160,18 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-
-
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
             Vec2::new(600.0, 100.0),
             t(0.0, -100.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(200.0, -0.0),
         );
 
         spawn_crate(
@@ -180,6 +186,36 @@ fn setup(
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
             t(0.0, 260.0),
+        );
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-100.0, 400.0),
+        );
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, 400.0),
+        );
+
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, 400.0),
+        );
+
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(100.0, 400.0),
         );
 
         spawn_player(
@@ -431,6 +467,11 @@ impl BoundingBoxTransform {
     }
 }
 
+fn try_itertools(
+    q: Query<(Entity, &mut Velocity)>
+) {
+}
+
 fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query<&mut Velocity>) {
     for (entity_a, xform_a, bb_a) in q.iter() {
         let a = BoundingBoxTransform(*xform_a, bb_a.clone());
@@ -485,18 +526,20 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
             match (x_displacement, y_displacement) {
                 (None, None) => {}
                 (None, Some(y_displacement)) => {
-
                     // move up whichever has a higher bottom (???)
 
                     if a.bottom() > b.bottom() {
+
+                        let tmp = r.get_mut(entity_b).unwrap().clone();
+
                         match r.get_mut(entity_a) {
                             Ok(mut iv) => {
+                                // to carry we want to access b's velocity and transfer it (?)
                                 match iv.0 {
                                     Some(v) => {
-                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                        *iv = Velocity(Some(tmp.0.unwrap() + Vec2::new(v.x, v.y + y_displacement)))
                                     }
                                     None => {
-                                        // TODO: carry here?
                                         *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
                                     }
                                 }
@@ -590,13 +633,14 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                             Err(_) => {}
                         }
                     } else {
-                    // move up whichever has a higher bottom (???)
+                        // move up whichever has a higher bottom (???)
                         if a.bottom() > b.bottom() {
                             match r.get_mut(entity_a) {
                                 Ok(mut iv) => {
                                     match iv.0 {
                                         Some(v) => {
-                                            *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                            *iv =
+                                                Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
                                         }
                                         None => {
                                             // TODO: carry here?
@@ -611,7 +655,8 @@ fn process_collisions(q: Query<(Entity, &Transform, &BoundingBox)>, mut r: Query
                                 Ok(mut iv) => {
                                     match iv.0 {
                                         Some(v) => {
-                                            *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
+                                            *iv =
+                                                Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
                                         }
                                         None => {
                                             // TODO: carry here?
