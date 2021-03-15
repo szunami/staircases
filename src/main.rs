@@ -1,5 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
+    ops::Bound,
 };
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
@@ -13,6 +14,7 @@ fn main() {
         .add_system(bevy::input::system::exit_on_esc_system.system())
         // .add_system(framerate.system())
         .add_system(update_step_arm.system())
+        .add_system(update_step_track.system())
         // reset IV
         .add_system(reset_intrinsic_velocity.system())
         // build edge graph
@@ -53,6 +55,7 @@ struct Step {
     escalator: Entity,
 }
 
+#[derive(Debug)]
 struct Track {
     position: f32,
     length: f32,
@@ -222,7 +225,7 @@ fn setup(
         //     t(-100.0, 300.0),
         // );
 
-        let escalator_transform = t(50.0, 250.0);
+        let escalator_transform = t(50.0, 50.0);
         let escalator_box = Vec2::new(200.0, 200.0);
         let escalator = spawn_escalator(
             commands,
@@ -234,16 +237,18 @@ fn setup(
         let step_box = Vec2::new(50.0, 50.0);
         for (step_transform, arm, track_position, track_length) in
             steps(escalator_transform, escalator_box, step_box)
+                .iter()
+                .take(1)
         {
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
                 escalator,
-                step_transform,
+                *step_transform,
                 step_box,
-                arm,
-                track_position,
-                track_length
+                arm.clone(),
+                *track_position,
+                *track_length,
             );
         }
     }
@@ -299,12 +304,13 @@ fn spawn_step(
         })
         .with(BoundingBox(size))
         .with(ActiveBoundingBox)
-        .with(Step {
-            arm,
-            escalator,
-        })
+        .with(Step { arm, escalator })
         .with(Velocity(None))
         .with(IntrinsicVelocity(None))
+        .with(Track {
+            length: track_length,
+            position: track_position,
+        })
         .current_entity()
         .expect("spawned step")
 }
@@ -392,7 +398,7 @@ fn steps(
         )),
         Arm::A,
         track_position,
-        track_length
+        track_length,
     ));
 
     track_position += step.x;
@@ -415,7 +421,6 @@ fn steps(
             track_length,
         ));
         track_position += step.x;
-
     }
 
     // C
@@ -430,7 +435,6 @@ fn steps(
         track_length,
     ));
     track_position += step.x;
-
 
     // D
     for index in 0..n - 1 {
@@ -477,22 +481,38 @@ fn player_intrinsic_velocity(
     }
 }
 
-fn step_intrinsic_velocity(mut query: Query<(&Step, &mut Velocity)>) {
-    for (step, mut velocity) in query.iter_mut() {
-        match step.arm {
-            Arm::A => {
-                *velocity = Velocity(Some(Vec2::new(0.0, -1.0)));
+fn step_intrinsic_velocity(
+    mut step_query: Query<(&Step, &BoundingBox, &Track, &Transform, &mut Velocity)>,
+    escalator_query: Query<(&Escalator, &BoundingBox, &Transform)>,
+) {
+    for (step, step_box, track, step_transform, mut velocity) in step_query.iter_mut() {
+        let (escalator, escalator_box, escalator_transform) = escalator_query
+            .get(step.escalator)
+            .expect("Step escalator lookup");
+
+        let s = step_box.0.x;
+        let N = escalator_box.0.x / s;
+
+        let T_1 = s;
+        let T_2 = s + (N - 1.) * s * f32::sqrt(2.);
+        let T_3 = 2. * s + (N - 1.) * s * f32::sqrt(2.);
+
+        let t = track.position;
+
+        let target = escalator_transform.translation.truncate() + {
+            if t < T_1 {
+                Vec2::new(-(N - 1.0) * s / 2.0, (N - 1.0) * s / 2.0) + Vec2::new(-t, 0.0)
+            } else if t < T_2 {
+                Vec2::new(-(N - 1.0) * s / 2.0, (N - 1.0) * s / 2.0)
+                    + Vec2::new(t - T_1, -(t - T_1))
+            } else if t < T_3 {
+                Vec2::new((N - 1.) * s / 2., -(N - 1.) * s / 2.) + Vec2::new(t - T_2, 0.0)
+            } else {
+                Vec2::new((N + 1.) * s / 2., -(N - 1.) * s / 2.) + Vec2::new(-(t - T_3), t - T_3)
             }
-            Arm::B => {
-                *velocity = Velocity(Some(Vec2::new(1.0, -1.0)));
-            }
-            Arm::C => {
-                *velocity = Velocity(Some(Vec2::new(1.0, 0.0)));
-            }
-            Arm::D => {
-                *velocity = Velocity(Some(Vec2::new(-1.0, 1.0)));
-            }
-        }
+        };
+
+        *velocity = Velocity(Some(target - step_transform.translation.truncate()));
     }
 }
 
@@ -588,11 +608,10 @@ fn process_collisions(
                 }
             }
 
-            dbg!(x_displacement, y_displacement);
-
             match (x_displacement, y_displacement) {
                 (None, None) => {}
                 (None, Some(y_displacement)) => {
+                    // dbg!("have a real collision");
                     // move up whichever has a higher bottom (???)
 
                     if a.bottom() > b.bottom() {
@@ -632,6 +651,8 @@ fn process_collisions(
                     }
                 }
                 (Some(x_displacement), None) => {
+                    // dbg!("have a real collision");
+
                     match r.get_mut(entity_a) {
                         Ok(mut iv) => {
                             match iv.0 {
@@ -663,6 +684,8 @@ fn process_collisions(
                     }
                 }
                 (Some(x_displacement), Some(y_displacement)) => {
+                    // dbg!("have a real collision");
+
                     // choose whichever is smaller
                     if x_displacement.abs() < y_displacement.abs() {
                         match r.get_mut(entity_a) {
@@ -740,27 +763,37 @@ fn process_collisions(
             }
         }
     }
-    dbg!("End of the line");
 }
 
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
+    let delta_seconds = 10.0 * time.delta().as_secs_f32();
+
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0.to_owned() {
             Some(velocity) => {
-                transform.translation.x += time.delta_seconds() * velocity.x;
-                transform.translation.y += time.delta_seconds() * velocity.y;
+                transform.translation.x += delta_seconds * velocity.x;
+                transform.translation.y += delta_seconds * velocity.y;
             }
             None => {}
         }
     }
 }
 
+fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
+    let delta = 10.0 * time.delta_seconds();
+
+    for (_step, mut track) in steps.iter_mut() {
+        track.position = (track.position + delta) % track.length;
+        dbg!(track);
+    }
+}
+
 fn update_step_arm(
     commands: &mut Commands,
-    mut steps: Query<(Entity, &mut Step, &BoundingBox, &Transform)>,
+    mut steps: Query<(Entity, &mut Step, &mut Track, &BoundingBox, &Transform)>,
     escalators: Query<(&Escalator, &BoundingBox, &Transform)>,
 ) {
-    for (step_entity, mut step, step_box, step_transform) in steps.iter_mut() {
+    for (step_entity, mut step, track, step_box, step_transform) in steps.iter_mut() {
         let (_escalator, escalator_box, escalator_transform) =
             escalators.get(step.escalator).expect("fetch escalator");
 
