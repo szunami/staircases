@@ -238,8 +238,9 @@ fn setup(
         for (step_transform, arm, track_position, track_length) in
             steps(escalator_transform, escalator_box, step_box)
                 .iter()
-                .take(1)
         {
+            dbg!("x");
+
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
@@ -386,7 +387,7 @@ fn steps(
     let mut result = vec![];
     let n = (escalator_box.y / step.y) as i32;
 
-    let track_length = (2.0 * (n as f32 - 1.0) * f32::sqrt(2.0) + 2.0) * step.x;
+    let track_length = (2.0 * (n as f32 - 1.0) + 2.0) * step.x;
     let mut track_position = 0.0;
 
     // A
@@ -437,7 +438,7 @@ fn steps(
     track_position += step.x;
 
     // D
-    for index in 0..n - 1 {
+    for index in 0..n  {
         result.push((
             Transform::from_translation(Vec3::new(
                 escalator_transform.translation.x + escalator_box.x / 2.0
@@ -494,14 +495,14 @@ fn step_intrinsic_velocity(
         let N = escalator_box.0.x / s;
 
         let T_1 = s;
-        let T_2 = s + (N - 1.) * s * f32::sqrt(2.);
-        let T_3 = 2. * s + (N - 1.) * s * f32::sqrt(2.);
+        let T_2 = s + (N - 1.) * s ;
+        let T_3 = 2. * s + (N - 1.) * s;
 
         let t = track.position;
 
         let target = escalator_transform.translation.truncate() + {
             if t < T_1 {
-                Vec2::new(-(N - 1.0) * s / 2.0, (N - 1.0) * s / 2.0) + Vec2::new(-t, 0.0)
+                Vec2::new(-(N - 3.0) * s / 2.0, (N - 1.0) * s / 2.0) + Vec2::new(-t, 0.0)
             } else if t < T_2 {
                 Vec2::new(-(N - 1.0) * s / 2.0, (N - 1.0) * s / 2.0)
                     + Vec2::new(t - T_1, -(t - T_1))
@@ -784,7 +785,7 @@ fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
 
     for (_step, mut track) in steps.iter_mut() {
         track.position = (track.position + delta) % track.length;
-        dbg!(track);
+        // dbg!(track);
     }
 }
 
