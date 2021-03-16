@@ -218,12 +218,12 @@ fn setup(
         //     t(100.0, 400.0),
         // );
 
-        // spawn_player(
-        //     commands,
-        //     player_handle.clone_weak(),
-        //     Vec2::new(50.0, 100.0),
-        //     t(-100.0, 300.0),
-        // );
+        spawn_player(
+            commands,
+            player_handle.clone_weak(),
+            Vec2::new(50.0, 100.0),
+            t(-100.0, 300.0),
+        );
 
         let escalator_transform = t(50.0, 50.0);
         let escalator_box = Vec2::new(200.0, 200.0);
