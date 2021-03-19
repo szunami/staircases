@@ -4,6 +4,7 @@ use nalgebra::{Isometry2, Point2, Vector2};
 use parry2d::{query, shape::ConvexPolygon};
 
 const BASE_SPEED_FACTOR: f32 = 70.0;
+const GRAVITY: f32 = 1.0;
 
 fn main() {
     App::build()
@@ -12,7 +13,7 @@ fn main() {
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        .add_system(framerate.system())
+        // .add_system(framerate.system())
         .add_system(update_step_arm.system())
         .add_system(update_step_track.system())
         // reset IV
@@ -33,9 +34,9 @@ fn main() {
         .run();
 }
 
-fn falling(mut q: Query<&Velocity>) {
+fn falling(mut q: Query<&mut Velocity>) {
     for mut velocity in q.iter_mut() {
-        velocity.0.y -= BASE_SPEED_FACTOR;
+        velocity.0.y -= GRAVITY;
     }
 }
 
@@ -116,12 +117,12 @@ fn setup(
             t(0.0, -100.0),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 200.0),
-        // );
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, 200.0),
+        );
 
         // spawn_crate(
         //     commands,
@@ -338,6 +339,12 @@ fn spawn_crate(
         })
         .with(Crate {})
         .with(Velocity(Vec2::zero()))
+        .with(ConvexPolygon::from_convex_hull(&[
+            Point2::new(-size.x / 2.0, size.y / 2.0),
+            Point2::new(size.x / 2.0, size.y / 2.0),
+            Point2::new(size.x / 2.0, -size.y / 2.0),
+            Point2::new(-size.x / 2.0, -size.y / 2.0),
+        ]).expect("poly"))
         .current_entity()
         .expect("Spawned crate")
 }
