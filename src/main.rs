@@ -5,6 +5,8 @@ use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use nalgebra::{Isometry2, Point2, Vector2};
 use parry2d::{query, shape::ConvexPolygon};
 
+const BASE_SPEED_FACTOR: f32 = 100.0;
+
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
@@ -641,7 +643,7 @@ fn process_collisions(
 }
 
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
-    let delta_seconds = 10.0 * time.delta().as_secs_f32();
+    let delta_seconds = BASE_SPEED_FACTOR * time.delta().as_secs_f32();
 
     for (maybe_velocity, mut transform) in query.iter_mut() {
         match maybe_velocity.0.to_owned() {
@@ -655,7 +657,7 @@ fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)
 }
 
 fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
-    let delta = 10.0 * time.delta_seconds();
+    let delta = BASE_SPEED_FACTOR * time.delta_seconds();
 
     for (_step, mut track) in steps.iter_mut() {
         track.position = (track.position + delta) % track.length;
