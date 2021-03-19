@@ -2,7 +2,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
-use nalgebra::{Isometry2, Vector2};
+use nalgebra::{Isometry2, Point2, Vector2};
 use parry2d::{query, shape::ConvexPolygon};
 
 fn main() {
@@ -282,6 +282,14 @@ fn spawn_escalator(
         .with(IntrinsicVelocity(None))
         .with(BoundingBox(size))
         .with(ActiveBoundingBox)
+        .with(
+            ConvexPolygon::from_convex_hull(&[
+                Point2::new(-size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, -size.y / 2.0),
+                Point2::new(-size.x / 2.0, -size.y / 2.0),
+            ])
+            .expect("polygon"),
+        )
         .current_entity()
         .expect("escalator")
 }
@@ -313,6 +321,15 @@ fn spawn_step(
             length: track_length,
             position: track_position,
         })
+        .with(
+            ConvexPolygon::from_convex_hull(&[
+                Point2::new(-size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, -size.y / 2.0),
+                Point2::new(-size.x / 2.0, -size.y / 2.0),
+            ])
+            .expect("poly"),
+        )
         .current_entity()
         .expect("spawned step")
 }
@@ -332,7 +349,16 @@ fn spawn_ground(
         })
         .with(BoundingBox(ground_box))
         .with(ActiveBoundingBox)
-        .with(Ground);
+        .with(Ground)
+        .with(
+            ConvexPolygon::from_convex_hull(&[
+                Point2::new(-ground_box.x / 2.0, ground_box.y / 2.0),
+                Point2::new(ground_box.x / 2.0, ground_box.y / 2.0),
+                Point2::new(ground_box.x / 2.0, -ground_box.y / 2.0),
+                Point2::new(-ground_box.x / 2.0, -ground_box.y / 2.0),
+            ])
+            .expect("polygon"),
+        );
 }
 
 #[allow(dead_code)]
@@ -353,7 +379,16 @@ fn spawn_player(
         .with(BoundingBox(size))
         .with(ActiveBoundingBox)
         .with(Velocity(None))
-        .with(IntrinsicVelocity(None));
+        .with(IntrinsicVelocity(None))
+        .with(
+            ConvexPolygon::from_convex_hull(&[
+                Point2::new(-size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, -size.y / 2.0),
+                Point2::new(-size.x / 2.0, -size.y / 2.0),
+            ])
+            .expect("poly"),
+        );
 }
 
 #[allow(dead_code)]
@@ -539,15 +574,14 @@ impl BoundingBoxTransform {
 }
 
 fn process_collisions(
-    q: Query<(Entity, &Transform, &BoundingBox)>,
+    q: Query<(Entity, &Transform, &ConvexPolygon)>,
+
     mut r: Query<&mut Velocity>,
 
     steps: Query<&Step>,
 ) {
-    for (entity_a, xform_a, bb_a) in q.iter() {
-        let a = BoundingBoxTransform(*xform_a, bb_a.clone());
-
-        for (entity_b, xform_b, bb_b) in q.iter() {
+    for (entity_a, xform_a, poly_a) in q.iter() {
+        for (entity_b, xform_b, poly_b) in q.iter() {
             if entity_a >= entity_b {
                 continue;
             }
@@ -568,198 +602,39 @@ fn process_collisions(
                 }
             }
 
-            let b = BoundingBoxTransform(*xform_b, bb_b.clone());
+            // TODO: carry! 
 
-            // y check
+            if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
+                if r.get_mut(entity_a).is_ok() && r.get_mut(entity_b).is_ok() {
+                    let mut w = r.get_mut(entity_a).unwrap();
+                    *w = Velocity(Some(
+                        w.0.unwrap_or_else(Vec2::zero) + contact.normal1 * contact.dist / 2.0,
+                    ));
 
-            let mut y_displacement = None;
-            let mut x_displacement = None;
-
-            // maybe include epsilon in check here?
-            if a.left() <= b.left() && b.left() < a.right()
-                || b.left() <= a.left() && a.left() < b.right()
-            {
-                if a.bottom() < b.top() && a.bottom() > b.bottom() {
-                    // a is falling into b; push a up
-                    y_displacement = Some(b.top() - a.bottom());
+                    let mut r = r.get_mut(entity_b).unwrap();
+                    *r = Velocity(Some(
+                        r.0.unwrap_or_else(Vec2::zero) + contact.normal2 * contact.dist / 2.0,
+                    ));
+                } else if let Ok(mut w) = r.get_mut(entity_a) {
+                    *w = Velocity(Some(
+                        w.0.unwrap_or_else(Vec2::zero) + contact.normal1 * contact.dist,
+                    ));
+                } else if let Ok(mut r) = r.get_mut(entity_b) {
+                    *r = Velocity(Some(
+                        r.0.unwrap_or_else(Vec2::zero) + contact.normal2 * contact.dist / 2.0,
+                    ));
+                } else {
                 }
 
-                if b.bottom() < a.top() && b.bottom() > a.bottom() {
-                    // b is falling into a; push b up
-                    y_displacement = Some(a.top() - b.bottom());
-                }
-            }
-
-            // x check
-
-            if a.bottom() <= b.bottom() && b.bottom() < a.top()
-                || b.bottom() <= a.bottom() && a.bottom() < b.top()
-            {
-                if b.left() < a.right() && a.right() < b.right() {
-                    // a is pushing into b from the left
-                    x_displacement = Some(a.right() - b.left());
-
-                    // divide displacement between a and b
-                }
-
-                if a.left() < b.right() && b.right() < a.right() {
-                    // b is pushing into a from the left
-                    x_displacement = Some(a.left() - b.right());
-                }
-            }
-
-            match (x_displacement, y_displacement) {
-                (None, None) => {}
-                (None, Some(y_displacement)) => {
-                    // dbg!("have a real collision");
-                    // move up whichever has a higher bottom (???)
-
-                    if a.bottom() > b.bottom() {
-                        let tmp = r.get_mut(entity_b).unwrap().clone();
-
-                        match r.get_mut(entity_a) {
-                            Ok(mut iv) => {
-                                // to carry we want to access b's velocity and transfer it (?)
-                                match iv.0 {
-                                    Some(v) => {
-                                        *iv = Velocity(Some(
-                                            tmp.0.unwrap() + Vec2::new(v.x, v.y + y_displacement),
-                                        ))
-                                    }
-                                    None => {
-                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
-                                    }
-                                }
-                            }
-                            Err(_) => {}
-                        }
-                    } else {
-                        match r.get_mut(entity_b) {
-                            Ok(mut iv) => {
-                                match iv.0 {
-                                    Some(v) => {
-                                        *iv = Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
-                                    }
-                                    None => {
-                                        // TODO: carry here?
-                                        *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
-                                    }
-                                }
-                            }
-                            Err(_) => {}
-                        }
-                    }
-                }
-                (Some(x_displacement), None) => {
-                    // dbg!("have a real collision");
-
-                    match r.get_mut(entity_a) {
-                        Ok(mut iv) => {
-                            match iv.0 {
-                                Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x - x_displacement / 2.0, v.y)))
-                                }
-                                None => {
-                                    // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(-x_displacement / 2.0, 0.0)));
-                                }
-                            }
-                        }
-                        Err(_) => {}
-                    }
-
-                    match r.get_mut(entity_b) {
-                        Ok(mut iv) => {
-                            match iv.0 {
-                                Some(v) => {
-                                    *iv = Velocity(Some(Vec2::new(v.x + x_displacement / 2.0, v.y)))
-                                }
-                                None => {
-                                    // TODO: carry here?
-                                    *iv = Velocity(Some(Vec2::new(x_displacement / 2.0, 0.0)));
-                                }
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                }
-                (Some(x_displacement), Some(y_displacement)) => {
-                    // dbg!("have a real collision");
-
-                    // choose whichever is smaller
-                    if x_displacement.abs() < y_displacement.abs() {
-                        match r.get_mut(entity_a) {
-                            Ok(mut iv) => {
-                                match iv.0 {
-                                    Some(v) => {
-                                        *iv = Velocity(Some(Vec2::new(
-                                            v.x - x_displacement / 2.0,
-                                            v.y,
-                                        )))
-                                    }
-                                    None => {
-                                        // TODO: carry here?
-                                        *iv = Velocity(Some(Vec2::new(-x_displacement / 2.0, 0.0)));
-                                    }
-                                }
-                            }
-                            Err(_) => {}
-                        }
-
-                        match r.get_mut(entity_b) {
-                            Ok(mut iv) => {
-                                match iv.0 {
-                                    Some(v) => {
-                                        *iv = Velocity(Some(Vec2::new(
-                                            v.x + x_displacement / 2.0,
-                                            v.y,
-                                        )))
-                                    }
-                                    None => {
-                                        // TODO: carry here?
-                                        *iv = Velocity(Some(Vec2::new(x_displacement / 2.0, 0.0)));
-                                    }
-                                }
-                            }
-                            Err(_) => {}
-                        }
-                    } else {
-                        // move up whichever has a higher bottom (???)
-                        if a.bottom() > b.bottom() {
-                            match r.get_mut(entity_a) {
-                                Ok(mut iv) => {
-                                    match iv.0 {
-                                        Some(v) => {
-                                            *iv =
-                                                Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
-                                        }
-                                        None => {
-                                            // TODO: carry here?
-                                            *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
-                                        }
-                                    }
-                                }
-                                Err(_) => {}
-                            }
-                        } else {
-                            match r.get_mut(entity_b) {
-                                Ok(mut iv) => {
-                                    match iv.0 {
-                                        Some(v) => {
-                                            *iv =
-                                                Velocity(Some(Vec2::new(v.x, v.y + y_displacement)))
-                                        }
-                                        None => {
-                                            // TODO: carry here?
-                                            *iv = Velocity(Some(Vec2::new(0.0, y_displacement)));
-                                        }
-                                    }
-                                }
-                                Err(_) => {}
-                            }
-                        }
-                    }
-                }
+                // match (r.get_mut(entity_a), r.get_mut(entity_b)) {
+                //     (Ok(mut w), Ok(mut r)) => {
+                //         *w = Velocity(Some(w.0.unwrap_or_else(Vec2::zero) + contact.normal1 * contact.dist / 2.0));
+                //         *r = Velocity(Some(r.0.unwrap_or_else(Vec2::zero) + contact.normal2 * contact.dist / 2.0));
+                //     }
+                //     (Ok(_), Err(_)) => {}
+                //     (Err(_), Ok(_)) => {}
+                //     (Err(_), Err(_)) => {}
+                // }
             }
         }
     }
@@ -1724,7 +1599,7 @@ fn test_down(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&
     false
 }
 
-fn lines(time: Res<Time>, mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
+fn lines(mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
     for (xform, polygon) in q.iter() {
         for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
             let start = Vec3::new(
@@ -1763,8 +1638,8 @@ fn lines(time: Res<Time>, mut lines: ResMut<DebugLines>, q: Query<(&Transform, &
 }
 
 struct BevyCollision {
-    normal1: Vec3,
-    normal2: Vec3,
+    normal1: Vec2,
+    normal2: Vec2,
     dist: f32,
 }
 
@@ -1788,8 +1663,8 @@ fn collision(
                 }
 
                 return Some(BevyCollision {
-                    normal1: Vec3::new(contact.normal1.x, contact.normal1.y, 0.0),
-                    normal2: Vec3::new(contact.normal2.x, contact.normal2.y, 0.0),
+                    normal1: Vec2::new(contact.normal1.x, contact.normal1.y),
+                    normal2: Vec2::new(contact.normal2.x, contact.normal2.y),
                     dist: contact.dist,
                 });
             })
