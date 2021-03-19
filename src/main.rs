@@ -5,7 +5,7 @@ use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use nalgebra::{Isometry2, Point2, Vector2};
 use parry2d::{query, shape::ConvexPolygon};
 
-const BASE_SPEED_FACTOR: f32 = 100.0;
+const BASE_SPEED_FACTOR: f32 = 70.0;
 
 fn main() {
     App::build()
