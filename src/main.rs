@@ -1,18 +1,19 @@
-use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
-    ops::Bound,
-};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use bevy::{diagnostic::Diagnostics, prelude::*};
+use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
+use nalgebra::{Isometry2, Vector2};
+use parry2d::{query, shape::ConvexPolygon};
 
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
+        .add_plugin(DebugLinesPlugin)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_resource(AdjacencyGraph::default())
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        // .add_system(framerate.system())
+        .add_system(framerate.system())
         .add_system(update_step_arm.system())
         .add_system(update_step_track.system())
         // reset IV
@@ -32,6 +33,7 @@ fn main() {
         .add_system(process_collisions.system())
         // for each IV, in order of ascending y, propagate
         .add_system(update_position.system())
+        .add_system(lines.system())
         .run();
 }
 
@@ -236,8 +238,7 @@ fn setup(
 
         let step_box = Vec2::new(50.0, 50.0);
         for (step_transform, arm, track_position, track_length) in
-            steps(escalator_transform, escalator_box, step_box)
-                .iter()
+            steps(escalator_transform, escalator_box, step_box).iter()
         {
             dbg!("x");
 
@@ -438,7 +439,7 @@ fn steps(
     track_position += step.x;
 
     // D
-    for index in 0..n  {
+    for index in 0..n {
         result.push((
             Transform::from_translation(Vec3::new(
                 escalator_transform.translation.x + escalator_box.x / 2.0
@@ -495,7 +496,7 @@ fn step_intrinsic_velocity(
         let N = escalator_box.0.x / s;
 
         let T_1 = s;
-        let T_2 = s + (N - 1.) * s ;
+        let T_2 = s + (N - 1.) * s;
         let T_3 = 2. * s + (N - 1.) * s;
 
         let t = track.position;
@@ -536,8 +537,6 @@ impl BoundingBoxTransform {
         self.0.translation.y - self.1 .0.y / 2.0
     }
 }
-
-fn try_itertools(q: Query<(Entity, &mut Velocity)>) {}
 
 fn process_collisions(
     q: Query<(Entity, &Transform, &BoundingBox)>,
@@ -1725,6 +1724,81 @@ fn test_down(entity: Entity, adjacency_graph: &AdjacencyGraph, grounds: &Query<&
     false
 }
 
+fn lines(time: Res<Time>, mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
+    for (xform, polygon) in q.iter() {
+        for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
+            let start = Vec3::new(
+                point1.x + xform.translation.x,
+                point1.y + xform.translation.y,
+                0.0,
+            );
+
+            let end = Vec3::new(
+                point2.x + xform.translation.x,
+                point2.y + xform.translation.y,
+                0.0,
+            );
+
+            lines.line(start, end, 1.);
+        }
+
+        if let Some(point1) = polygon.points().first() {
+            if let Some(point2) = polygon.points().last() {
+                let start = Vec3::new(
+                    point1.x + xform.translation.x,
+                    point1.y + xform.translation.y,
+                    0.0,
+                );
+
+                let end = Vec3::new(
+                    point2.x + xform.translation.x,
+                    point2.y + xform.translation.y,
+                    0.0,
+                );
+
+                lines.line(start, end, 1.);
+            }
+        }
+    }
+}
+
+struct BevyCollision {
+    normal1: Vec3,
+    normal2: Vec3,
+    dist: f32,
+}
+
+fn collision(
+    poly1: &ConvexPolygon,
+    xform1: &Transform,
+    poly2: &ConvexPolygon,
+    xform2: &Transform,
+) -> Option<BevyCollision> {
+    let p1 = Vector2::new(xform1.translation.x, xform1.translation.y);
+    let i1 = Isometry2::new(p1, 0.0);
+
+    let p2 = Vector2::new(xform2.translation.x, xform2.translation.y);
+    let i2 = Isometry2::new(p2, 0.0);
+
+    query::contact(&i1, poly1, &i2, poly2, 0.1)
+        .map(|contact| {
+            contact.map(|contact| {
+                if contact.dist >= 0.0 {
+                    return None;
+                }
+
+                return Some(BevyCollision {
+                    normal1: Vec3::new(contact.normal1.x, contact.normal1.y, 0.0),
+                    normal2: Vec3::new(contact.normal2.x, contact.normal2.y, 0.0),
+                    dist: contact.dist,
+                });
+            })
+        })
+        .ok()
+        .flatten()
+        .flatten()
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -2170,569 +2244,569 @@ mod tests {
         );
     }
 
-    #[test]
-    fn grounded_escalator_test() {
-        helper(
-            |commands, _resources| {
-                let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+    // #[test]
+    // fn grounded_escalator_test() {
+    //     helper(
+    //         |commands, _resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::zero());
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-                    .iter()
-                    .take(1)
-                {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        *step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+    //                 .iter()
+    //                 .take(1)
+    //             {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     *step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
 
-                let ground_box = Vec2::new(300.0, 50.0);
+    //             let ground_box = Vec2::new(300.0, 50.0);
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    ground_box,
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
-            },
-            vec![(|steps: Query<(&Step, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 ground_box,
+    //                 Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    //             );
+    //         },
+    //         vec![(|steps: Query<(&Step, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn player_atop_escalator() {
-        helper(
-            |commands, _resources| {
-                let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+    // #[test]
+    // fn player_atop_escalator() {
+    //     helper(
+    //         |commands, _resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::zero());
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(300.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(300.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    //             );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-                );
-            },
-            vec![(|steps: Query<(&Player, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+    //             );
+    //         },
+    //         vec![(|steps: Query<(&Player, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn player_atop_escalator_can_move_right() {
-        helper(
-            |commands, resources| {
-                let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+    // #[test]
+    // fn player_atop_escalator_can_move_right() {
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::zero());
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(300.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(300.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    //             );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-                );
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+    //             );
 
-                let mut input = Input::<KeyCode>::default();
-                input.press(KeyCode::D);
-                resources.insert(input)
-            },
-            vec![(|steps: Query<(&Player, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let mut input = Input::<KeyCode>::default();
+    //             input.press(KeyCode::D);
+    //             resources.insert(input)
+    //         },
+    //         vec![(|steps: Query<(&Player, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn player_atop_escalator_cannot_move_left() {
-        helper(
-            |commands, resources| {
-                let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+    // #[test]
+    // fn player_atop_escalator_cannot_move_left() {
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::zero());
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box) {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(300.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(300.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    //             );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
-                );
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(25.0, 25.0, 0.0)),
+    //             );
 
-                let mut input = Input::<KeyCode>::default();
-                input.press(KeyCode::A);
-                resources.insert(input)
-            },
-            vec![(|steps: Query<(&Player, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let mut input = Input::<KeyCode>::default();
+    //             input.press(KeyCode::A);
+    //             resources.insert(input)
+    //         },
+    //         vec![(|steps: Query<(&Player, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn player_pushing_escalator() {
-        struct A;
+    // #[test]
+    // fn player_pushing_escalator() {
+    //     struct A;
 
-        helper(
-            |commands, resources| {
-                let escalator_transform = Transform::from_translation(Vec3::zero());
-                let escalator_box = Vec2::new(200.0, 200.0);
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::zero());
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-                    .iter()
-                    .take(1)
-                {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        *step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+    //                 .iter()
+    //                 .take(1)
+    //             {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     *step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
 
-                    commands.with(A);
-                }
+    //                 commands.with(A);
+    //             }
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(300.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(300.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, -125.0, 0.0)),
+    //             );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(-125.0, -75.0, 0.0)),
-                );
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(-125.0, -75.0, 0.0)),
+    //             );
 
-                let mut input = Input::<KeyCode>::default();
-                input.press(KeyCode::D);
-                resources.insert(input)
-            },
-            vec![(|steps: Query<(&A, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(1.0, -1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let mut input = Input::<KeyCode>::default();
+    //             input.press(KeyCode::D);
+    //             resources.insert(input)
+    //         },
+    //         vec![(|steps: Query<(&A, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(1.0, -1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn falling_escalator() {
-        helper(
-            |commands, _resources| {
-                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+    // #[test]
+    // fn falling_escalator() {
+    //     helper(
+    //         |commands, _resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-                let escalator_box = Vec2::new(200.0, 200.0);
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-                    .iter()
-                    .take(1)
-                {
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        *step_transform,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
-            },
-            vec![(|steps: Query<(&Step, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+    //                 .iter()
+    //                 .take(1)
+    //             {
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     *step_transform,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
+    //         },
+    //         vec![(|steps: Query<(&Step, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn falling_escalator_2() {
-        helper(
-            |commands, _resources| {
-                let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+    // #[test]
+    // fn falling_escalator_2() {
+    //     helper(
+    //         |commands, _resources| {
+    //             let escalator_transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
 
-                let escalator_box = Vec2::new(200.0, 200.0);
+    //             let escalator_box = Vec2::new(200.0, 200.0);
 
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    escalator_transform,
-                    escalator_box,
-                );
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator_transform,
+    //                 escalator_box,
+    //             );
 
-                let step_box = Vec2::new(50.0, 50.0);
-                for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
-                    .iter()
-                    .take(1)
-                {
-                    let mut tmp = step_transform.clone();
-                    tmp.translation.y -= 1.0;
+    //             let step_box = Vec2::new(50.0, 50.0);
+    //             for (step_transform, arm) in steps(escalator_transform, escalator_box, step_box)
+    //                 .iter()
+    //                 .take(1)
+    //             {
+    //                 let mut tmp = step_transform.clone();
+    //                 tmp.translation.y -= 1.0;
 
-                    spawn_step(
-                        commands,
-                        Handle::default(),
-                        escalator,
-                        tmp,
-                        step_box,
-                        arm.clone(),
-                    );
-                }
-            },
-            vec![(|steps: Query<(&Step, &Velocity)>| {
-                for (_step, velocity) in steps.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //                 spawn_step(
+    //                     commands,
+    //                     Handle::default(),
+    //                     escalator,
+    //                     tmp,
+    //                     step_box,
+    //                     arm.clone(),
+    //                 );
+    //             }
+    //         },
+    //         vec![(|steps: Query<(&Step, &Velocity)>| {
+    //             for (_step, velocity) in steps.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -2.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn knock_off() {
-        helper(
-            |commands, resources| {
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                );
+    // #[test]
+    // fn knock_off() {
+    //     helper(
+    //         |commands, resources| {
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+    //             );
 
-                spawn_crate(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
-                );
+    //             spawn_crate(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(0.0, 50.0, 0.0)),
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(0.0, 50.0),
-                    Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(0.0, 50.0),
+    //                 Transform::from_translation(Vec3::new(50.0, 50.0, 0.0)),
+    //             );
 
-                let mut input = Input::<KeyCode>::default();
-                input.press(KeyCode::D);
-                resources.insert(input)
-            },
-            vec![(|crates: Query<(&Crate, &Velocity)>| {
-                for (_crate, velocity) in crates.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let mut input = Input::<KeyCode>::default();
+    //             input.press(KeyCode::D);
+    //             resources.insert(input)
+    //         },
+    //         vec![(|crates: Query<(&Crate, &Velocity)>| {
+    //             for (_crate, velocity) in crates.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, -1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn double_step() {
-        helper(
-            |commands, resources| {
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    t(0.0, 0.0),
-                    Vec2::new(200.0, 200.0),
-                );
+    // #[test]
+    // fn double_step() {
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 t(0.0, 0.0),
+    //                 Vec2::new(200.0, 200.0),
+    //             );
 
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-50.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::D,
-                );
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-75.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::A,
-                );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-50.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::D,
+    //             );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-75.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::A,
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(200.0, 100.0),
-                    t(0.0, -150.0),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(200.0, 100.0),
+    //                 t(0.0, -150.0),
+    //             );
 
-                spawn_crate(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-75.0, 100.0),
-                );
-            },
-            vec![(|crates: Query<(&Crate, &Velocity)>| {
-                for (_crate, velocity) in crates.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             spawn_crate(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-75.0, 100.0),
+    //             );
+    //         },
+    //         vec![(|crates: Query<(&Crate, &Velocity)>| {
+    //             for (_crate, velocity) in crates.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(-1.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    fn walled_double_step() {
-        helper(
-            |commands, resources| {
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    t(0.0, 0.0),
-                    Vec2::new(200.0, 200.0),
-                );
+    // #[test]
+    // fn walled_double_step() {
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 t(0.0, 0.0),
+    //                 Vec2::new(200.0, 200.0),
+    //             );
 
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-50.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::D,
-                );
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-75.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::A,
-                );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-50.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::D,
+    //             );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-75.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::A,
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(200.0, 100.0),
-                    t(0.0, -150.0),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(200.0, 100.0),
+    //                 t(0.0, -150.0),
+    //             );
 
-                spawn_crate(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-75.0, 100.0),
-                );
+    //             spawn_crate(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-75.0, 100.0),
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-125.0, 75.0),
-                );
-            },
-            vec![(|crates: Query<(&Crate, &Velocity)>| {
-                for (_crate, velocity) in crates.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-125.0, 75.0),
+    //             );
+    //         },
+    //         vec![(|crates: Query<(&Crate, &Velocity)>| {
+    //             for (_crate, velocity) in crates.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(0.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 
-    #[test]
-    #[ignore]
-    fn pushing_walled_double_step() {
-        helper(
-            |commands, resources| {
-                let escalator = spawn_escalator(
-                    commands,
-                    Handle::default(),
-                    t(0.0, 0.0),
-                    Vec2::new(200.0, 200.0),
-                );
+    // #[test]
+    // #[ignore]
+    // fn pushing_walled_double_step() {
+    //     helper(
+    //         |commands, resources| {
+    //             let escalator = spawn_escalator(
+    //                 commands,
+    //                 Handle::default(),
+    //                 t(0.0, 0.0),
+    //                 Vec2::new(200.0, 200.0),
+    //             );
 
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-50.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::D,
-                );
-                spawn_step(
-                    commands,
-                    Handle::default(),
-                    escalator,
-                    t(-75.0, 50.0),
-                    Vec2::new(50.0, 50.0),
-                    Arm::A,
-                );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-50.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::D,
+    //             );
+    //             spawn_step(
+    //                 commands,
+    //                 Handle::default(),
+    //                 escalator,
+    //                 t(-75.0, 50.0),
+    //                 Vec2::new(50.0, 50.0),
+    //                 Arm::A,
+    //             );
 
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(200.0, 100.0),
-                    t(0.0, -150.0),
-                );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(200.0, 100.0),
+    //                 t(0.0, -150.0),
+    //             );
 
-                spawn_crate(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-75.0, 100.0),
-                );
+    //             spawn_crate(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-75.0, 100.0),
+    //             );
 
-                spawn_player(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-125.0, 125.0),
-                );
-                spawn_ground(
-                    commands,
-                    Handle::default(),
-                    Vec2::new(50.0, 50.0),
-                    t(-125.0, 75.0),
-                );
+    //             spawn_player(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-125.0, 125.0),
+    //             );
+    //             spawn_ground(
+    //                 commands,
+    //                 Handle::default(),
+    //                 Vec2::new(50.0, 50.0),
+    //                 t(-125.0, 75.0),
+    //             );
 
-                let mut input = Input::<KeyCode>::default();
-                input.press(KeyCode::D);
-                resources.insert(input);
-            },
-            vec![(|crates: Query<(&Crate, &Velocity)>| {
-                for (_crate, velocity) in crates.iter() {
-                    assert_eq!(*velocity, Velocity(Some(Vec2::new(1.0, 1.0))));
-                }
-            })
-            .system()],
-        );
-    }
+    //             let mut input = Input::<KeyCode>::default();
+    //             input.press(KeyCode::D);
+    //             resources.insert(input);
+    //         },
+    //         vec![(|crates: Query<(&Crate, &Velocity)>| {
+    //             for (_crate, velocity) in crates.iter() {
+    //                 assert_eq!(*velocity, Velocity(Some(Vec2::new(1.0, 1.0))));
+    //             }
+    //         })
+    //         .system()],
+    //     );
+    // }
 }
