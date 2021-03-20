@@ -33,7 +33,7 @@ fn main() {
         .run();
 }
 
-fn falling(mut q: Query<&Velocity>) {
+fn falling(mut q: Query<&mut Velocity>) {
     for mut velocity in q.iter_mut() {
         velocity.0.y -= BASE_SPEED_FACTOR;
     }
