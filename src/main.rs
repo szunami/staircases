@@ -151,12 +151,12 @@ fn setup(
         //     t(50.0, 400.0),
         // );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(100.0, 400.0),
-        // );
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(100.0, 400.0),
+        );
 
         spawn_player(
             commands,
@@ -336,6 +336,13 @@ fn spawn_crate(
         })
         .with(Crate {})
         .with(Velocity(Vec2::zero()))
+        .with(
+    ConvexPolygon::from_convex_hull(&[
+                Point2::new(-size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, -size.y / 2.0),
+                Point2::new(-size.x / 2.0, -size.y / 2.0),
+            ]).expect("poly"))
         .current_entity()
         .expect("Spawned crate")
 }
