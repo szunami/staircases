@@ -13,27 +13,18 @@ fn main() {
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         // .add_system(framerate.system())
-        .add_system(update_step_arm.system())
         .add_system(update_step_track.system())
-        // reset IV
         .add_system(reset_velocity.system())
-        // assign step IV
-        .add_system(step_intrinsic_velocity.system())
-        // assign player IV
-        .add_system(player_intrinsic_velocity.system())
-        // assign falling IV
-        .add_system(falling.system())
-        // propagation
-        // .add_system(velocity_propagation.system())
-        // reset velocity
+        .add_system(step_velocity.system())
+        .add_system(player_velocity.system())
+        .add_system(falling_velocity.system())
         .add_system(process_collisions.system())
-        // for each IV, in order of ascending y, propagate
         .add_system(update_position.system())
         .add_system(lines.system())
         .run();
 }
 
-fn falling(mut q: Query<&mut Velocity>) {
+fn falling_velocity(mut q: Query<&mut Velocity>) {
     for mut velocity in q.iter_mut() {
         velocity.0.y -= 1.0;
     }
@@ -51,7 +42,6 @@ struct Escalator {
 }
 
 struct Step {
-    arm: Arm,
     escalator: Entity,
     length: f32,
 }
@@ -60,14 +50,6 @@ struct Step {
 struct Track {
     position: f32,
     length: f32,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-enum Arm {
-    A,
-    B,
-    C,
-    D,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -175,7 +157,7 @@ fn setup(
         );
 
         let step_length = 50.0;
-        for (step_transform, arm, track_position, track_length) in
+        for (step_transform, track_position, track_length) in
             steps(escalator_transform, escalator_length, step_length).iter()
         {
             spawn_step(
@@ -184,7 +166,6 @@ fn setup(
                 escalator,
                 *step_transform,
                 step_length,
-                arm.clone(),
                 *track_position,
                 *track_length,
             );
@@ -210,7 +191,7 @@ fn spawn_escalator(
                 is_transparent: true,
             },
             texture_atlas: texture.clone_weak(),
-            transform: transform,
+            transform,
             ..Default::default()
         })
         .with(Escalator { length })
@@ -234,7 +215,6 @@ fn spawn_step(
     escalator: Entity,
     transform: Transform,
     length: f32,
-    arm: Arm,
     track_position: f32,
     track_length: f32,
 ) -> Entity {
@@ -245,11 +225,7 @@ fn spawn_step(
             sprite: Sprite::new(Vec2::splat(length)),
             ..Default::default()
         })
-        .with(Step {
-            arm,
-            escalator,
-            length,
-        })
+        .with(Step { escalator, length })
         .with(Velocity(Vec2::zero()))
         .with(Track {
             length: track_length,
@@ -337,12 +313,14 @@ fn spawn_crate(
         .with(Crate {})
         .with(Velocity(Vec2::zero()))
         .with(
-    ConvexPolygon::from_convex_hull(&[
+            ConvexPolygon::from_convex_hull(&[
                 Point2::new(-size.x / 2.0, size.y / 2.0),
                 Point2::new(size.x / 2.0, size.y / 2.0),
                 Point2::new(size.x / 2.0, -size.y / 2.0),
                 Point2::new(-size.x / 2.0, -size.y / 2.0),
-            ]).expect("poly"))
+            ])
+            .expect("poly"),
+        )
         .current_entity()
         .expect("Spawned crate")
 }
@@ -352,7 +330,7 @@ fn steps(
     escalator_transform: Transform,
     escalator_length: f32,
     step_length: f32,
-) -> Vec<(Transform, Arm, f32, f32)> {
+) -> Vec<(Transform, f32, f32)> {
     let mut result = vec![];
     let n = (escalator_length / step_length) as i32;
 
@@ -366,7 +344,6 @@ fn steps(
             escalator_transform.translation.y + escalator_length / 2.0 - step_length / 2.0,
             0.0,
         )),
-        Arm::A,
         track_position,
         track_length,
     ));
@@ -386,7 +363,6 @@ fn steps(
                     - index as f32 * step_length,
                 0.0,
             )),
-            Arm::B,
             track_position,
             track_length,
         ));
@@ -400,7 +376,6 @@ fn steps(
             escalator_transform.translation.y - escalator_length / 2.0 + step_length / 2.0,
             0.0,
         )),
-        Arm::C,
         track_position,
         track_length,
     ));
@@ -419,7 +394,6 @@ fn steps(
                     + (index as f32) * step_length,
                 0.0,
             )),
-            Arm::D,
             track_position,
             track_length,
         ));
@@ -428,11 +402,11 @@ fn steps(
     result
 }
 
-fn player_intrinsic_velocity(
+fn player_velocity(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<(&Player, Entity, &mut Velocity)>,
+    mut query: Query<(&Player, &mut Velocity)>,
 ) {
-    for (_player, entity, mut velocity) in query.iter_mut() {
+    for (_player, mut velocity) in query.iter_mut() {
         let mut x_velocity = 0.0;
         if keyboard_input.pressed(KeyCode::A) {
             x_velocity += -1.0;
@@ -445,7 +419,7 @@ fn player_intrinsic_velocity(
     }
 }
 
-fn step_intrinsic_velocity(
+fn step_velocity(
     mut step_query: Query<(&Step, &Track, &Transform, &mut Velocity)>,
     escalator_query: Query<(&Escalator, &Transform)>,
 ) {
@@ -455,24 +429,23 @@ fn step_intrinsic_velocity(
             .expect("Step escalator lookup");
 
         let s = step.length;
-        let N = escalator.length / s;
+        let n = escalator.length / s;
 
-        let T_1 = s;
-        let T_2 = s + (N - 1.) * s;
-        let T_3 = 2. * s + (N - 1.) * s;
+        let t1 = s;
+        let t2 = s + (n - 1.) * s;
+        let t3 = 2. * s + (n - 1.) * s;
 
         let t = track.position;
 
         let target = escalator_transform.translation.truncate() + {
-            if t < T_1 {
-                Vec2::new(-(N - 3.0) * s / 2.0, (N - 1.0) * s / 2.0) + Vec2::new(-t, 0.0)
-            } else if t < T_2 {
-                Vec2::new(-(N - 1.0) * s / 2.0, (N - 1.0) * s / 2.0)
-                    + Vec2::new(t - T_1, -(t - T_1))
-            } else if t < T_3 {
-                Vec2::new((N - 1.) * s / 2., -(N - 1.) * s / 2.) + Vec2::new(t - T_2, 0.0)
+            if t < t1 {
+                Vec2::new(-(n - 3.0) * s / 2.0, (n - 1.0) * s / 2.0) + Vec2::new(-t, 0.0)
+            } else if t < t2 {
+                Vec2::new(-(n - 1.0) * s / 2.0, (n - 1.0) * s / 2.0) + Vec2::new(t - t1, -(t - t1))
+            } else if t < t3 {
+                Vec2::new((n - 1.) * s / 2., -(n - 1.) * s / 2.) + Vec2::new(t - t2, 0.0)
             } else {
-                Vec2::new((N + 1.) * s / 2., -(N - 1.) * s / 2.) + Vec2::new(-(t - T_3), t - T_3)
+                Vec2::new((n + 1.) * s / 2., -(n - 1.) * s / 2.) + Vec2::new(-(t - t3), t - t3)
             }
         };
 
@@ -498,7 +471,7 @@ fn process_collisions(
                     continue;
                 }
 
-                if let Ok(step_b) = steps.get(entity_b) {
+                if let Ok(_step_b) = steps.get(entity_b) {
                     continue;
                 }
             }
@@ -560,48 +533,6 @@ fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
     for (_step, mut track) in steps.iter_mut() {
         track.position = (track.position + delta) % track.length;
         // dbg!(track);
-    }
-}
-
-fn update_step_arm(
-    commands: &mut Commands,
-    mut steps: Query<(Entity, &mut Step, &mut Track, &Transform)>,
-    escalators: Query<(&Escalator, &Transform)>,
-) {
-    for (step_entity, mut step, track, step_transform) in steps.iter_mut() {
-        let (escalator, escalator_transform) =
-            escalators.get(step.escalator).expect("fetch escalator");
-
-        let step_top = step_transform.translation.y + step.length / 2.0;
-        let step_bottom = step_transform.translation.y - step.length / 2.0;
-        let step_right = step_transform.translation.x + step.length / 2.0;
-
-        let escalator_top = escalator_transform.translation.y + escalator.length / 2.0;
-        let escalator_bottom = escalator_transform.translation.y - escalator.length / 2.0;
-        let escalator_right = escalator_transform.translation.x + escalator.length / 2.0;
-
-        match step.arm {
-            Arm::A => {
-                if (step_bottom - (escalator_top - 2.0 * step.length)) < std::f32::EPSILON {
-                    step.arm = Arm::B;
-                }
-            }
-            Arm::B => {
-                if (step_bottom - escalator_bottom).abs() < std::f32::EPSILON {
-                    step.arm = Arm::C;
-                }
-            }
-            Arm::C => {
-                if (step_right - escalator_right).abs() < std::f32::EPSILON {
-                    step.arm = Arm::D;
-                }
-            }
-            Arm::D => {
-                if (step_top - escalator_top).abs() < std::f32::EPSILON {
-                    step.arm = Arm::A;
-                }
-            }
-        }
     }
 }
 
@@ -674,66 +605,14 @@ fn collision(
                     return None;
                 }
 
-                return Some(BevyCollision {
+                Some(BevyCollision {
                     normal1: Vec2::new(contact.normal1.x, contact.normal1.y),
                     normal2: Vec2::new(contact.normal2.x, contact.normal2.y),
                     dist: contact.dist,
-                });
+                })
             })
         })
         .ok()
         .flatten()
         .flatten()
 }
-
-// #[cfg(test)]
-// mod tests {
-
-//     use bevy::ecs::{FuncSystem, Stage};
-
-//     use super::*;
-
-//     fn helper<F>(commands_init: F, assertions: Vec<FuncSystem<()>>)
-//     where
-//         F: FnOnce(&mut Commands, &mut Resources) -> (),
-//     {
-//         let mut world = World::default();
-//         let mut resources = Resources::default();
-
-//         resources.insert(Input::<KeyCode>::default());
-
-//         let mut commands = Commands::default();
-
-//         commands.set_entity_reserver(world.get_entity_reserver());
-
-//         commands_init(&mut commands, &mut resources);
-//         commands.apply(&mut world, &mut resources);
-
-//         let mut stage = SystemStage::serial();
-
-//         stage
-//             // .add_system(bevy::input::system::exit_on_esc_system.system())
-//             // .add_system(framerate.system())
-//             // reset IV
-//             // build edge graph
-//             // assign step IV
-//             .add_system(step_intrinsic_velocity.system())
-//             // assign player IV
-//             .add_system(player_intrinsic_velocity.system())
-//             // assign falling IV
-//             // propagation
-//             .add_system(reset_velocity.system())
-//             // reset velocity
-//             // for each IV, in order of ascending y, propagate
-//             .add_system(update_position.system())
-//             .add_system(update_step_arm.system());
-
-//         for system in assertions {
-//             stage.add_system(system);
-//         }
-
-//         stage.initialize(&mut world, &mut resources);
-
-//         stage.run_once(&mut world, &mut resources)
-//     }
-// }
