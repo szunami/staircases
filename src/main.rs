@@ -12,7 +12,7 @@ fn main() {
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        .add_system(framerate.system())
+        // .add_system(framerate.system())
         .add_system(update_step_arm.system())
         .add_system(update_step_track.system())
         // reset IV
@@ -162,7 +162,7 @@ fn setup(
             commands,
             player_handle.clone_weak(),
             Vec2::new(50.0, 100.0),
-            t(-100.0, 300.0),
+            t(0.0, 300.0),
         );
 
         let escalator_transform = t(50.0, 50.0);
@@ -176,10 +176,8 @@ fn setup(
 
         let step_length = 50.0;
         for (step_transform, arm, track_position, track_length) in
-            steps(escalator_transform,  escalator_length, step_length).iter()
+            steps(escalator_transform, escalator_length, step_length).iter()
         {
-            dbg!("x");
-
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
@@ -478,7 +476,7 @@ fn step_intrinsic_velocity(
 fn process_collisions(
     q: Query<(Entity, &Transform, &ConvexPolygon)>,
 
-    mut r: Query<&mut Velocity>,
+    mut velocities: Query<&mut Velocity>,
 
     steps: Query<&Step>,
 ) {
@@ -507,15 +505,31 @@ fn process_collisions(
             // TODO: carry!
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
-                if r.get_mut(entity_a).is_ok() && r.get_mut(entity_b).is_ok() {
-                    let mut w = r.get_mut(entity_a).unwrap();
-                    *w = Velocity(w.0 + contact.normal1 * contact.dist / 2.0);
+                if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
+                    {
+                        let velocity_b = velocities.get_mut(entity_b).unwrap().clone();
+                        let mut velocity_a = velocities.get_mut(entity_a).unwrap();
+                        if contact.normal1.y < 0.0 {
+                            let carry_v = Vec2::new(velocity_b.0.x, 0.0);
+                            // b carrying a
+                            *velocity_a = Velocity(velocity_a.0 + carry_v);
+                        }
+                        *velocity_a = Velocity(velocity_a.0 + contact.normal1 * contact.dist / 2.0);
+                    }
 
-                    let mut r = r.get_mut(entity_b).unwrap();
-                    *r = Velocity(r.0 + contact.normal2 * contact.dist / 2.0);
-                } else if let Ok(mut w) = r.get_mut(entity_a) {
+                    {
+                        let velocity_a = velocities.get_mut(entity_a).unwrap().clone();
+                        let mut velocity_b = velocities.get_mut(entity_b).unwrap();
+                        if contact.normal2.y < 0.0 {
+                            let carry_v = Vec2::new(velocity_a.0.x, 0.0);
+                            // a carrying b
+                            *velocity_b = Velocity(velocity_b.0 + carry_v);
+                        }
+                        *velocity_b = Velocity(velocity_b.0 + contact.normal2 * contact.dist / 2.0);
+                    }
+                } else if let Ok(mut w) = velocities.get_mut(entity_a) {
                     *w = Velocity(w.0 + contact.normal1 * contact.dist);
-                } else if let Ok(mut r) = r.get_mut(entity_b) {
+                } else if let Ok(mut r) = velocities.get_mut(entity_b) {
                     *r = Velocity(r.0 + contact.normal2 * contact.dist / 2.0);
                 } else {
                 }
