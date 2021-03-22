@@ -35,7 +35,7 @@ fn main() {
 
 fn falling(mut q: Query<&mut Velocity>) {
     for mut velocity in q.iter_mut() {
-        velocity.0.y -= BASE_SPEED_FACTOR;
+        velocity.0.y -= 1.0;
     }
 }
 
@@ -176,7 +176,7 @@ fn setup(
 
         let step_length = 50.0;
         for (step_transform, arm, track_position, track_length) in
-            steps(escalator_transform, escalator_length, step_length).iter()
+            steps(escalator_transform,  escalator_length, step_length).iter()
         {
             dbg!("x");
 
@@ -219,7 +219,7 @@ fn spawn_escalator(
         .with(Velocity(Vec2::zero()))
         .with(
             ConvexPolygon::from_convex_hull(&[
-                Point2::new(-length / 2.0, length / 2.0),
+                Point2::new(-length / 2.0, length / 2.0 - 10.0),
                 Point2::new(length / 2.0, -length / 2.0),
                 Point2::new(-length / 2.0, -length / 2.0),
             ])
