@@ -122,7 +122,6 @@ fn setup(
             t(-50.0, 175.0),
         );
 
-
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
@@ -143,7 +142,7 @@ fn setup(
             Vec2::new(50.0, 50.0),
             t(50.0, 125.0),
         );
-        
+
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
@@ -662,7 +661,7 @@ fn ladder(
 ) {
     for (_player, player_xform, player_poly, mut player_velocity) in players.iter_mut() {
         for (_ladder, ladder_xform, ladder_poly) in ladders.iter() {
-            if let Some(collision) = collision(player_poly, player_xform, ladder_poly, ladder_xform)
+            if let Some(_collision) = collision(player_poly, player_xform, ladder_poly, ladder_xform)
             {
                 if (player_xform.translation.x - ladder_xform.translation.x).abs()
                     < LADDER_TOLERANCE
