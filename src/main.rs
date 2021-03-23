@@ -97,57 +97,58 @@ fn setup(
         spawn_ladder(
             commands,
             ground_handle.clone_weak(),
-            t(-200.0, 0.0),
-            Vec2::new(50.0, 100.0),
+            t(0.0, 100.0),
+            Vec2::new(50.0, 200.0),
         );
 
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
-            Vec2::new(600.0, 100.0),
-            t(0.0, -100.0),
+            Vec2::new(400.0, 50.0),
+            t(0.0, -25.0),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 200.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 260.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-100.0, 400.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 400.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(50.0, 400.0),
-        // );
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-50.0, 125.0),
+        );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(-250.0, 400.0),
+            t(-50.0, 175.0),
+        );
+
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(75.0, 50.0),
+            t(237.5, -75.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(100.0, 50.0),
+            t(325., -25.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, 125.0),
+        );
+        
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, 175.0),
         );
 
         spawn_player(
@@ -157,29 +158,29 @@ fn setup(
             t(0.0, 300.0),
         );
 
-        let escalator_transform = t(50.0, 100.0);
-        let escalator_length = 200.0;
-        let escalator = spawn_escalator(
-            commands,
-            escalator_handle.clone_weak(),
-            escalator_transform,
-            escalator_length,
-        );
+        // let escalator_transform = t(50.0, 100.0);
+        // let escalator_length = 200.0;
+        // let escalator = spawn_escalator(
+        //     commands,
+        //     escalator_handle.clone_weak(),
+        //     escalator_transform,
+        //     escalator_length,
+        // );
 
-        let step_length = 50.0;
-        for (step_transform, track_position, track_length) in
-            steps(escalator_transform, escalator_length, step_length).iter()
-        {
-            spawn_step(
-                commands,
-                step_handle.clone_weak(),
-                escalator,
-                *step_transform,
-                step_length,
-                *track_position,
-                *track_length,
-            );
-        }
+        // let step_length = 50.0;
+        // for (step_transform, track_position, track_length) in
+        //     steps(escalator_transform, escalator_length, step_length).iter()
+        // {
+        //     spawn_step(
+        //         commands,
+        //         step_handle.clone_weak(),
+        //         escalator,
+        //         *step_transform,
+        //         step_length,
+        //         *track_position,
+        //         *track_length,
+        //     );
+        // }
     }
 }
 
