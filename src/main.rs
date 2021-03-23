@@ -672,7 +672,7 @@ fn ladder(
                     // snap player to ladder x
                     // set y velocity to 1?
                     // what if ladder is moving???
-                    player_velocity.0.x = player_xform.translation.x - ladder_xform.translation.x;
+                    player_velocity.0.x = (ladder_xform.translation.x - player_xform.translation.x) / BASE_SPEED_FACTOR;
                     player_velocity.0.y = 1.0;
 
                 }
