@@ -18,6 +18,7 @@ fn main() {
         .add_system(step_velocity.system())
         .add_system(player_velocity.system())
         .add_system(falling_velocity.system())
+        .add_system(ladder.system())
         .add_system(process_collisions.system())
         .add_system(update_position.system())
         .add_system(lines.system())
@@ -62,6 +63,8 @@ struct Crate;
 
 struct Player;
 
+struct Ladder;
+
 fn t(x: f32, y: f32) -> Transform {
     Transform::from_translation(Vec3::new(x, y, 0.0))
 }
@@ -91,53 +94,60 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
+        spawn_ladder(
+            commands,
+            ground_handle.clone_weak(),
+            t(0.0, 100.0),
+            Vec2::new(50.0, 200.0),
+        );
+
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
-            Vec2::new(600.0, 100.0),
-            t(0.0, -100.0),
+            Vec2::new(400.0, 50.0),
+            t(0.0, -25.0),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 200.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 260.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-100.0, 400.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 400.0),
-        // );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(50.0, 400.0),
-        // );
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-50.0, 125.0),
+        );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(100.0, 400.0),
+            t(-50.0, 175.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(75.0, 50.0),
+            t(237.5, -75.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(100.0, 50.0),
+            t(325., -25.0),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, 125.0),
+        );
+
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, 175.0),
         );
 
         spawn_player(
@@ -147,29 +157,29 @@ fn setup(
             t(0.0, 300.0),
         );
 
-        let escalator_transform = t(50.0, 50.0);
-        let escalator_length = 200.0;
-        let escalator = spawn_escalator(
-            commands,
-            escalator_handle.clone_weak(),
-            escalator_transform,
-            escalator_length,
-        );
+        // let escalator_transform = t(50.0, 100.0);
+        // let escalator_length = 200.0;
+        // let escalator = spawn_escalator(
+        //     commands,
+        //     escalator_handle.clone_weak(),
+        //     escalator_transform,
+        //     escalator_length,
+        // );
 
-        let step_length = 50.0;
-        for (step_transform, track_position, track_length) in
-            steps(escalator_transform, escalator_length, step_length).iter()
-        {
-            spawn_step(
-                commands,
-                step_handle.clone_weak(),
-                escalator,
-                *step_transform,
-                step_length,
-                *track_position,
-                *track_length,
-            );
-        }
+        // let step_length = 50.0;
+        // for (step_transform, track_position, track_length) in
+        //     steps(escalator_transform, escalator_length, step_length).iter()
+        // {
+        //     spawn_step(
+        //         commands,
+        //         step_handle.clone_weak(),
+        //         escalator,
+        //         *step_transform,
+        //         step_length,
+        //         *track_position,
+        //         *track_length,
+        //     );
+        // }
     }
 }
 
@@ -206,6 +216,32 @@ fn spawn_escalator(
         )
         .current_entity()
         .expect("escalator")
+}
+
+#[allow(dead_code)]
+fn spawn_ladder(
+    commands: &mut Commands,
+    material: Handle<ColorMaterial>,
+    transform: Transform,
+    size: Vec2,
+) {
+    commands
+        .spawn(SpriteBundle {
+            material,
+            transform,
+            sprite: Sprite::new(size),
+            ..Default::default()
+        })
+        .with(Ladder)
+        .with(
+            ConvexPolygon::from_convex_hull(&[
+                Point2::new(-size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, size.y / 2.0),
+                Point2::new(size.x / 2.0, -size.y / 2.0),
+                Point2::new(-size.x / 2.0, -size.y / 2.0),
+            ])
+            .expect("poly"),
+        );
 }
 
 #[allow(dead_code)]
@@ -454,7 +490,7 @@ fn step_velocity(
 }
 
 fn process_collisions(
-    q: Query<(Entity, &Transform, &ConvexPolygon)>,
+    q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
 
     mut velocities: Query<&mut Velocity>,
 
@@ -481,8 +517,6 @@ fn process_collisions(
                     continue;
                 }
             }
-
-            // TODO: carry!
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
                 if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
@@ -615,4 +649,29 @@ fn collision(
         .ok()
         .flatten()
         .flatten()
+}
+
+const LADDER_TOLERANCE: f32 = 2.0;
+
+fn ladder(
+    keys: Res<Input<KeyCode>>,
+
+    mut players: Query<(&Player, &Transform, &ConvexPolygon, &mut Velocity)>,
+    ladders: Query<(&Ladder, &Transform, &ConvexPolygon)>,
+) {
+    for (_player, player_xform, player_poly, mut player_velocity) in players.iter_mut() {
+        for (_ladder, ladder_xform, ladder_poly) in ladders.iter() {
+            if let Some(_collision) = collision(player_poly, player_xform, ladder_poly, ladder_xform)
+            {
+                if (player_xform.translation.x - ladder_xform.translation.x).abs()
+                    < LADDER_TOLERANCE
+                    && keys.pressed(KeyCode::W)
+                {
+                    player_velocity.0.x = (ladder_xform.translation.x - player_xform.translation.x)
+                        / BASE_SPEED_FACTOR;
+                    player_velocity.0.y = 1.0;
+                }
+            }
+        }
+    }
 }
