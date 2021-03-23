@@ -22,6 +22,11 @@ fn main() {
         .add_system(process_collisions.system())
         .add_system(update_position.system())
         .add_system(lines.system())
+        .add_system((|q: Query<(&Crate, &Transform)>|{
+            for (_crate, xform) in q.iter() {
+                dbg!(xform.translation);
+            }
+        }).system())
         .run();
 }
 
