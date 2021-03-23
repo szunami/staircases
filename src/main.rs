@@ -490,7 +490,7 @@ fn step_velocity(
 }
 
 fn process_collisions(
-    q: Query<(Entity, &Transform, &ConvexPolygon), (Without<Ladder>)>,
+    q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
 
     mut velocities: Query<&mut Velocity>,
 
@@ -517,8 +517,6 @@ fn process_collisions(
                     continue;
                 }
             }
-
-            // TODO: carry!
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
                 if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
@@ -659,26 +657,21 @@ fn ladder(
     keys: Res<Input<KeyCode>>,
 
     mut players: Query<(&Player, &Transform, &ConvexPolygon, &mut Velocity)>,
-    ladders: Query<(&Ladder, &Transform, &ConvexPolygon)>
+    ladders: Query<(&Ladder, &Transform, &ConvexPolygon)>,
 ) {
-
     for (_player, player_xform, player_poly, mut player_velocity) in players.iter_mut() {
         for (_ladder, ladder_xform, ladder_poly) in ladders.iter() {
-            
-            if let Some(collision) = collision(player_poly, player_xform, ladder_poly, ladder_xform) {
-                if (player_xform.translation.x - ladder_xform.translation.x).abs() < LADDER_TOLERANCE && keys.pressed(KeyCode::W) {
-                    dbg!("Player climbing ladder fyi");
-
-                    // snap player to ladder x
-                    // set y velocity to 1?
-                    // what if ladder is moving???
-                    player_velocity.0.x = (ladder_xform.translation.x - player_xform.translation.x) / BASE_SPEED_FACTOR;
+            if let Some(collision) = collision(player_poly, player_xform, ladder_poly, ladder_xform)
+            {
+                if (player_xform.translation.x - ladder_xform.translation.x).abs()
+                    < LADDER_TOLERANCE
+                    && keys.pressed(KeyCode::W)
+                {
+                    player_velocity.0.x = (ladder_xform.translation.x - player_xform.translation.x)
+                        / BASE_SPEED_FACTOR;
                     player_velocity.0.y = 1.0;
-
                 }
             }
-
         }
     }
-
 }
