@@ -532,35 +532,49 @@ fn process_collisions(
                         if contact.normal2.y >= 0.0 {
                             let velocity_b = velocities.get_mut(entity_b).unwrap().clone();
                             let mut velocity_a = velocities.get_mut(entity_a).unwrap();
+
+                            let mut carry_v = Vec2::zero();
+
                             if contact.normal1.y < 0.0 {
-                                let carry_v = Vec2::new(velocity_b.0.x, 0.0);
                                 // b carrying a
-                                *velocity_a = Velocity(velocity_a.0 + carry_v);
+                                carry_v = Vec2::new(velocity_b.0.x, 0.0);
                             }
                             *velocity_a =
-                                Velocity(velocity_a.0 + contact.normal1 * contact.dist / 2.0);
+                                Velocity(velocity_a.0 + contact.normal1 * contact.dist / 2.0 + carry_v);
                         }
                     }
 
                     {
-                        // don't push b down???
-
                         if contact.normal1.y >= 0.0 {
                             let velocity_a = velocities.get_mut(entity_a).unwrap().clone();
                             let mut velocity_b = velocities.get_mut(entity_b).unwrap();
+                            let mut carry_v = Vec2::zero();
+
                             if contact.normal2.y < 0.0 {
-                                let carry_v = Vec2::new(velocity_a.0.x, 0.0);
+                                carry_v = Vec2::new(velocity_a.0.x, 0.0);
                                 // a carrying b
-                                *velocity_b = Velocity(velocity_b.0 + carry_v);
                             }
                             *velocity_b =
-                                Velocity(velocity_b.0 + contact.normal2 * contact.dist / 2.0);
+                                Velocity(velocity_b.0 + contact.normal2 * contact.dist / 2.0 + carry_v);
                         }
                     }
                 } else if let Ok(mut w) = velocities.get_mut(entity_a) {
-                    *w = Velocity(w.0 + contact.normal1 * contact.dist);
+
+                    let collision_correction = contact.normal1 * contact.dist;
+
+                    let orthonormal = collision_correction.perp().normalize();
+
+                    let orthogonal_projection = w.0.dot(orthonormal) * orthonormal;
+
+                    *w = Velocity(orthogonal_projection + collision_correction);
                 } else if let Ok(mut r) = velocities.get_mut(entity_b) {
-                    *r = Velocity(r.0 + contact.normal2 * contact.dist);
+
+                    let collision_correction: Vec2 = contact.normal2 * contact.dist;
+                    let orthonormal = collision_correction.perp().normalize();
+
+                    let orthogonal_projection = r.0.dot(orthonormal) * orthonormal;
+
+                    *r = Velocity(orthogonal_projection + collision_correction);
                 } else {
                 }
             }
