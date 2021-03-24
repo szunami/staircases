@@ -23,9 +23,9 @@ fn main() {
         .add_system(update_position.system())
         .add_system(lines.system())
         .add_system(
-            (|q: Query<(&Crate, &Transform)>| {
-                for (_crate, xform) in q.iter() {
-                    dbg!(xform.translation);
+            (|q: Query<(&Player, &Transform, &Velocity)>| {
+                for (_crate, xform, velocity) in q.iter() {
+                    dbg!(xform.translation, velocity);
                 }
             })
             .system(),
@@ -123,12 +123,12 @@ fn setup(
             t(-50.0, 125.0),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-50.0, 175.0),
-        // );
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-50.0, 175.0),
+        );
 
         spawn_ground(
             commands,
@@ -162,7 +162,7 @@ fn setup(
             commands,
             player_handle.clone_weak(),
             Vec2::new(50.0, 100.0),
-            t(0.0, 300.0),
+            t(0.0, 200.0),
         );
 
         // let escalator_transform = t(50.0, 100.0);
@@ -529,37 +529,43 @@ fn process_collisions(
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
                 if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
                     {
-                        if contact.normal2.y >= 0.0 {
-                            let velocity_b = velocities.get_mut(entity_b).unwrap().clone();
-                            let mut velocity_a = velocities.get_mut(entity_a).unwrap();
+                        let collision_correction = contact.normal1 * contact.dist;
+                        let orthonormal = collision_correction.perp().normalize();
 
-                            let mut carry_v = Vec2::zero();
+                        let velocity_b = velocities.get_mut(entity_b).unwrap().clone();
+                        let mut velocity_a = velocities.get_mut(entity_a).unwrap();
 
-                            if contact.normal1.y < 0.0 {
-                                // b carrying a
-                                carry_v = Vec2::new(velocity_b.0.x, 0.0);
-                            }
-                            *velocity_a =
-                                Velocity(velocity_a.0 + contact.normal1 * contact.dist / 2.0 + carry_v);
+                        let orthogonal_projection = velocity_a.0.dot(orthonormal) * orthonormal;
+
+                        let mut carry_v = Vec2::zero();
+
+                        if contact.normal1.y < 0.0 {
+                            // b carrying a
+                            carry_v = Vec2::new(velocity_b.0.x, 0.0);
                         }
+                        *velocity_a =
+                            Velocity(orthogonal_projection + collision_correction / 2.0 + carry_v);
                     }
 
                     {
-                        if contact.normal1.y >= 0.0 {
-                            let velocity_a = velocities.get_mut(entity_a).unwrap().clone();
-                            let mut velocity_b = velocities.get_mut(entity_b).unwrap();
-                            let mut carry_v = Vec2::zero();
+                        let collision_correction = contact.normal2 * contact.dist;
+                        let orthonormal = collision_correction.perp().normalize();
 
-                            if contact.normal2.y < 0.0 {
-                                carry_v = Vec2::new(velocity_a.0.x, 0.0);
-                                // a carrying b
-                            }
-                            *velocity_b =
-                                Velocity(velocity_b.0 + contact.normal2 * contact.dist / 2.0 + carry_v);
+                        let velocity_a = velocities.get_mut(entity_a).unwrap().clone();
+                        let mut velocity_b = velocities.get_mut(entity_b).unwrap();
+
+                        let orthogonal_projection = velocity_b.0.dot(orthonormal) * orthonormal;
+
+                        let mut carry_v = Vec2::zero();
+
+                        if contact.normal2.y < 0.0 {
+                            carry_v = Vec2::new(velocity_a.0.x, 0.0);
+                            // a carrying b
                         }
+                        *velocity_b =
+                            Velocity(orthogonal_projection + collision_correction / 2.0 + carry_v);
                     }
                 } else if let Ok(mut w) = velocities.get_mut(entity_a) {
-
                     let collision_correction = contact.normal1 * contact.dist;
 
                     let orthonormal = collision_correction.perp().normalize();
@@ -568,7 +574,6 @@ fn process_collisions(
 
                     *w = Velocity(orthogonal_projection + collision_correction);
                 } else if let Ok(mut r) = velocities.get_mut(entity_b) {
-
                     let collision_correction: Vec2 = contact.normal2 * contact.dist;
                     let orthonormal = collision_correction.perp().normalize();
 
@@ -596,7 +601,6 @@ fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
 
     for (_step, mut track) in steps.iter_mut() {
         track.position = (track.position + delta) % track.length;
-        // dbg!(track);
     }
 }
 
@@ -663,7 +667,7 @@ fn collision(
     let p2 = Vector2::new(xform2.translation.x, xform2.translation.y);
     let i2 = Isometry2::new(p2, 0.0);
 
-    let epsilon = f32::EPSILON;
+    let epsilon = 0.00001;
     query::contact(&i1, poly1, &i2, poly2, 0.1)
         .map(|contact| {
             contact.map(|contact| {
@@ -674,7 +678,7 @@ fn collision(
                 Some(BevyCollision {
                     normal1: Vec2::new(contact.normal1.x, contact.normal1.y),
                     normal2: Vec2::new(contact.normal2.x, contact.normal2.y),
-                    dist: contact.dist - epsilon,
+                    dist: contact.dist - 5.0 * epsilon,
                 })
             })
         })
@@ -700,8 +704,7 @@ fn ladder(
                     < LADDER_TOLERANCE
                     && keys.pressed(KeyCode::W)
                 {
-                    player_velocity.0.x = (ladder_xform.translation.x - player_xform.translation.x)
-                        / BASE_SPEED_FACTOR;
+                    player_velocity.0.x = ladder_xform.translation.x - player_xform.translation.x;
                     player_velocity.0.y = 1.0;
                 }
             }
