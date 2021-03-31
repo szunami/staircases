@@ -13,46 +13,48 @@ fn main() {
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
         // .add_system(framerate.system())
-
         // systems that don't edit velocity
         .add_system(update_step_track.system())
-
         // first pass at setting velocities
         .add_system(reset_velocity.system())
-
         .add_system(step_velocity.system())
         .add_system(player_velocity.system())
         .add_system(falling_velocity.system())
         .add_system(ladder.system())
-
         // integrate
         .add_system(update_position.system())
-
-
-        // .add_system(
-        //     (|q: Query<(&Crate, &Transform, &Velocity)>| {
-        //         dbg!("first pass");
-        //         for (_crate, xform, velocity) in q.iter() {
-        //             dbg!(xform.translation, velocity);
-        //         }
-        //     })
-        //     .system(),
-        // )
-
+        .add_system(
+            (|q: Query<(&Crate, &Transform, &Velocity)>| {
+                // dbg!("first pass");
+                for (_crate, xform, velocity) in q.iter() {
+                    // dbg!(xform.translation);
+                }
+            })
+            .system(),
+        )
         // second pass at setting velocities; impulses to avoid collisions
         // TODO: carry
         .add_system(reset_velocity.system())
-
         .add_system(process_collisions.system())
         .add_system(update_position.system())
-
+        .add_system(reset_velocity.system())
+        .add_system(process_collisions.system())
+        .add_system(update_position.system())
+        .add_system(reset_velocity.system())
+        .add_system(process_collisions.system())
+        .add_system(update_position.system())
         .add_system(lines.system())
         .add_system(
-
-            (|q: Query<(&Crate, &Transform, &Velocity)>| {
-                dbg!("second pass");
-                for (_crate, xform, velocity) in q.iter() {
-                    dbg!(xform.translation, velocity);
+            (|q: Query<(&Player, &Transform, &Velocity)>,
+                r: Query<(&Crate, &Transform, &Velocity)>,
+            | {
+                dbg!("player");
+                for (_player, xform, velocity) in q.iter() {
+                    dbg!(xform.translation);
+                }
+                dbg!("crate");
+                for (_crate, xform, velocity) in r.iter() {
+                    dbg!(xform.translation);
                 }
             })
             .system(),
@@ -129,92 +131,40 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        spawn_ladder(
+        spawn_player(
             commands,
-            ground_handle.clone_weak(),
-            t(0.0, 100.0),
-            Vec2::new(50.0, 200.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(400.0, 50.0),
-            t(0.0, -25.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-50.0, 125.0),
-        );
-
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-50.0, 175.0),
-        // );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(75.0, 50.0),
-            t(237.5, -75.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(100.0, 50.0),
-            t(325., -25.0),
-        );
-
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(50.0, 125.0),
+            player_handle.clone_weak(),
+            Vec2::new(50.0, 100.0),
+            t(0.0, 0.0),
         );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(50.0, 175.0),
+            t(0.0, -75.0),
         );
 
-        spawn_player(
+        spawn_crate(
             commands,
-            player_handle.clone_weak(),
-            Vec2::new(50.0, 100.0),
-            t(0.0, 200.0),
+            crate_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, -125.0),
         );
 
-        // let escalator_transform = t(50.0, 100.0);
-        // let escalator_length = 200.0;
-        // let escalator = spawn_escalator(
-        //     commands,
-        //     escalator_handle.clone_weak(),
-        //     escalator_transform,
-        //     escalator_length,
-        // );
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(0.0, -175.0),
+        );
 
-        // let step_length = 50.0;
-        // for (step_transform, track_position, track_length) in
-        //     steps(escalator_transform, escalator_length, step_length).iter()
-        // {
-        //     spawn_step(
-        //         commands,
-        //         step_handle.clone_weak(),
-        //         escalator,
-        //         *step_transform,
-        //         step_length,
-        //         *track_position,
-        //         *track_length,
-        //     );
-        // }
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(50.0, -75.0),
+        );
     }
 }
 
@@ -532,11 +482,12 @@ fn process_collisions(
 
     steps: Query<&Step>,
 ) {
-
     // HACK: this will get multiplied by delta, so we divide by it first
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
 
-
+    if delta == 0.0 {
+        return;
+    }
 
     for (entity_a, xform_a, poly_a) in q.iter() {
         for (entity_b, xform_b, poly_b) in q.iter() {
@@ -561,10 +512,9 @@ fn process_collisions(
             }
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
-                dbg!(contact.clone());
+                // dbg!(contact.clone());
 
                 // HACK: collisions shouldn't push down(?)
-
 
                 if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
                     {
@@ -572,8 +522,7 @@ fn process_collisions(
                         collision_correction.y = collision_correction.y.max(0.0);
 
                         let mut velocity_a = velocities.get_mut(entity_a).unwrap();
-                        *velocity_a =
-                            Velocity(velocity_a.0 + collision_correction  / delta);
+                        *velocity_a = Velocity(velocity_a.0 + collision_correction / delta);
                     }
 
                     {
@@ -581,8 +530,7 @@ fn process_collisions(
                         collision_correction.y = collision_correction.y.max(0.0);
 
                         let mut velocity_b = velocities.get_mut(entity_b).unwrap();
-                        *velocity_b =
-                            Velocity(velocity_b.0 + collision_correction / delta);
+                        *velocity_b = Velocity(velocity_b.0 + collision_correction / delta);
                     }
                 } else if let Ok(mut w) = velocities.get_mut(entity_a) {
                     let collision_correction = contact.normal1 * contact.dist;
@@ -677,7 +625,7 @@ fn collision(
     let p2 = Vector2::new(xform2.translation.x, xform2.translation.y);
     let i2 = Isometry2::new(p2, 0.0);
 
-    let epsilon = 0.0;
+    let epsilon = 0.0001;
     query::contact(&i1, poly1, &i2, poly2, 0.1)
         .map(|contact| {
             contact.map(|contact| {
