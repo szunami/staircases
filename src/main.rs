@@ -126,7 +126,8 @@ fn normal_force(
 
 /*
 Friction is applied between two bodies in contact.
-It is perpendicular to the normal, and resists motion of the top entity relative to the bottom entity.
+It is perpendicular to the normal of the comment
+and resists motion of the top entity relative to the bottom entity.
 */
 fn friction(
     time: Res<Time>,
@@ -167,17 +168,15 @@ fn friction(
 
                 let FRICTION_COEFFICIENT: f32 = 1.0;
 
-
                 if contact.normal2.y > 0. {
-
                     if let Ok(velocity_b) = velocities.get_mut(entity_b) {
                         let velocity_b = velocity_b.clone();
-    
+
                         if let Ok(mut velocity_a) = velocities.get_mut(entity_a) {
                             let friction = FRICTION_COEFFICIENT
                                 * velocity_b.0
                                 * contact.normal1.perp().normalize();
-    
+
                             // project b's velocity onto
                             velocity_a.0 += friction;
                         }
@@ -187,20 +186,17 @@ fn friction(
                 if contact.normal1.y > 0. {
                     if let Ok(velocity_a) = velocities.get_mut(entity_a) {
                         let velocity_a = velocity_a.clone();
-    
+
                         if let Ok(mut velocity_b) = velocities.get_mut(entity_b) {
                             // project b's velocity onto
                             let friction = FRICTION_COEFFICIENT
                                 * velocity_a.0
                                 * contact.normal2.perp().normalize();
-    
+
                             velocity_b.0 += friction;
                         }
                     }
                 }
-
-
-
             }
         }
     }
@@ -276,19 +272,19 @@ fn setup(
             t(0., -25.),
         );
 
-        // let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
+        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
 
-        // for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
-        //     spawn_step(
-        //         commands,
-        //         step_handle.clone_weak(),
-        //         escalator,
-        //         step_transform,
-        //         50.0,
-        //         track_position,
-        //         track_length,
-        //     );
-        // }
+        for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
+            spawn_step(
+                commands,
+                step_handle.clone_weak(),
+                escalator,
+                step_transform,
+                50.0,
+                track_position,
+                track_length,
+            );
+        }
 
         spawn_player(
             commands,
@@ -297,12 +293,12 @@ fn setup(
             t(0.0, 300.0),
         );
 
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, 50.0)
-        );
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(0.0, 50.0),
+        // );
 
         // spawn_crate(
         //     commands,
