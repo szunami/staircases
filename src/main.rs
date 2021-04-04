@@ -46,8 +46,7 @@ fn main() {
         .add_system(lines.system())
         .add_system(
             (|q: Query<(&Player, &Transform, &Velocity)>,
-                r: Query<(&Crate, &Transform, &Velocity)>,
-            | {
+              r: Query<(&Crate, &Transform, &Velocity)>| {
                 dbg!("player");
                 for (_player, xform, velocity) in q.iter() {
                     dbg!(xform.translation);
@@ -131,39 +130,53 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50., 50.),
+            t(0., -25.),
+        );
+
+        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
+
+        for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
+            spawn_step(
+                commands,
+                step_handle.clone_weak(),
+                escalator,
+                step_transform,
+                50.0,
+                track_position,
+                track_length,
+            );
+        }
+
         spawn_player(
             commands,
             player_handle.clone_weak(),
             Vec2::new(50.0, 100.0),
-            t(0.0, 0.0),
+            t(0.0, 300.0),
         );
 
         spawn_crate(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(0.0, -75.0),
-        );
-
-        spawn_crate(
-            commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(0.0, -125.0),
+            t(-200.0, 0.0),
         );
 
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(0.0, -175.0),
+            t(-200.0, -50.0),
         );
 
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(50.0, -75.0),
+            t(-250.0, 0.0),
         );
     }
 }
