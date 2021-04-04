@@ -21,6 +21,7 @@ fn main() {
         .add_system(player_velocity.system())
         .add_system(falling_velocity.system())
         .add_system(normal_force.system())
+        .add_system(friction.system())
         .add_system(ladder.system())
         // integrate
         .add_system(update_position.system())
@@ -48,13 +49,13 @@ fn main() {
         .add_system(
             (|q: Query<(&Player, &Transform, &Velocity)>,
               r: Query<(&Crate, &Transform, &Velocity)>| {
-                dbg!("player");
+                // dbg!("player");
                 for (_player, xform, velocity) in q.iter() {
-                    dbg!(xform.translation);
+                    // dbg!(xform.translation);
                 }
-                dbg!("crate");
+                // dbg!("crate");
                 for (_crate, xform, velocity) in r.iter() {
-                    dbg!(xform.translation);
+                    // dbg!(xform.translation);
                 }
             })
             .system(),
@@ -118,31 +119,89 @@ fn normal_force(
                         velocity_b.0.y += 1.0;
                     }
                 }
+            }
+        }
+    }
+}
 
-                // if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
-                //     {
-                //         let mut collision_correction = contact.normal1 * contact.dist;
-                //         collision_correction.y = collision_correction.y.max(0.0);
+/*
 
-                //         let mut velocity_a = velocities.get_mut(entity_a).unwrap();
-                //         *velocity_a = Velocity(velocity_a.0 + collision_correction / delta);
-                //     }
+Friction is applied between two 
 
-                //     {
-                //         let mut collision_correction = contact.normal2 * contact.dist;
-                //         collision_correction.y = collision_correction.y.max(0.0);
+*/
+fn friction(
+    time: Res<Time>,
+    q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
 
-                //         let mut velocity_b = velocities.get_mut(entity_b).unwrap();
-                //         *velocity_b = Velocity(velocity_b.0 + collision_correction / delta);
-                //     }
-                // } else if let Ok(mut w) = velocities.get_mut(entity_a) {
-                //     let collision_correction = contact.normal1 * contact.dist;
-                //     *w = Velocity(w.0 + collision_correction / delta);
-                // } else if let Ok(mut r) = velocities.get_mut(entity_b) {
-                //     let collision_correction: Vec2 = contact.normal2 * contact.dist;
-                //     *r = Velocity(r.0 + collision_correction / delta);
-                // } else {
-                // }
+    mut velocities: Query<&mut Velocity>,
+
+    steps: Query<&Step>,
+) {
+    for (entity_a, xform_a, poly_a) in q.iter() {
+        for (entity_b, xform_b, poly_b) in q.iter() {
+            if entity_a >= entity_b {
+                continue;
+            }
+
+            if let Ok(step_a) = steps.get(entity_a) {
+                if step_a.escalator == entity_b {
+                    continue;
+                }
+
+                if let Ok(_step_b) = steps.get(entity_b) {
+                    continue;
+                }
+            }
+
+            if let Ok(step) = steps.get(entity_b) {
+                if step.escalator == entity_a {
+                    continue;
+                }
+            }
+
+            if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
+                // friction should be
+                // proportional to velocity
+                // orthogonal to normal
+
+                // friction from b to a:
+
+                let FRICTION_COEFFICIENT: f32 = 1.0;
+
+
+                if contact.normal2.y > 0. {
+
+                    if let Ok(velocity_b) = velocities.get_mut(entity_b) {
+                        let velocity_b = velocity_b.clone();
+    
+                        if let Ok(mut velocity_a) = velocities.get_mut(entity_a) {
+                            let friction = FRICTION_COEFFICIENT
+                                * velocity_b.0
+                                * contact.normal1.perp().normalize();
+    
+                            // project b's velocity onto
+                            velocity_a.0 += friction;
+                        }
+                    }
+                }
+
+                if contact.normal1.y > 0. {
+                    if let Ok(velocity_a) = velocities.get_mut(entity_a) {
+                        let velocity_a = velocity_a.clone();
+    
+                        if let Ok(mut velocity_b) = velocities.get_mut(entity_b) {
+                            // project b's velocity onto
+                            let friction = FRICTION_COEFFICIENT
+                                * velocity_a.0
+                                * contact.normal2.perp().normalize();
+    
+                            velocity_b.0 += friction;
+                        }
+                    }
+                }
+
+
+
             }
         }
     }
@@ -218,19 +277,19 @@ fn setup(
             t(0., -25.),
         );
 
-        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
+        // let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
 
-        for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
-            spawn_step(
-                commands,
-                step_handle.clone_weak(),
-                escalator,
-                step_transform,
-                50.0,
-                track_position,
-                track_length,
-            );
-        }
+        // for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
+        //     spawn_step(
+        //         commands,
+        //         step_handle.clone_weak(),
+        //         escalator,
+        //         step_transform,
+        //         50.0,
+        //         track_position,
+        //         track_length,
+        //     );
+        // }
 
         spawn_player(
             commands,
@@ -243,22 +302,29 @@ fn setup(
             commands,
             crate_handle.clone_weak(),
             Vec2::new(50.0, 50.0),
-            t(-200.0, 0.0),
+            t(0.0, 50.0)
         );
 
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-200.0, -50.0),
-        );
+        // spawn_crate(
+        //     commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(-200.0, 0.0),
+        // );
 
-        spawn_ground(
-            commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-250.0, 0.0),
-        );
+        // spawn_ground(
+        //     commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(-200.0, -50.0),
+        // );
+
+        // spawn_ground(
+        //     commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(50.0, 50.0),
+        //     t(-250.0, 0.0),
+        // );
     }
 }
 
@@ -641,7 +707,6 @@ fn process_collisions(
 
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
-    dbg!(delta);
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += delta * velocity.0.x;
         transform.translation.y += delta * velocity.0.y;
