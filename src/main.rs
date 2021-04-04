@@ -125,9 +125,8 @@ fn normal_force(
 }
 
 /*
-
-Friction is applied between two 
-
+Friction is applied between two bodies in contact.
+It is perpendicular to the normal, and resists motion of the top entity relative to the bottom entity.
 */
 fn friction(
     time: Res<Time>,
