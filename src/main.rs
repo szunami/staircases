@@ -293,6 +293,13 @@ fn setup(
             t(0.0, 300.0),
         );
 
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50.0, 50.0),
+            t(-125., 175.),
+        );
+
         // spawn_crate(
         //     commands,
         //     crate_handle.clone_weak(),
