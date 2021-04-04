@@ -20,6 +20,7 @@ fn main() {
         .add_system(step_velocity.system())
         .add_system(player_velocity.system())
         .add_system(falling_velocity.system())
+        .add_system(normal_force.system())
         .add_system(ladder.system())
         // integrate
         .add_system(update_position.system())
@@ -37,12 +38,12 @@ fn main() {
         .add_system(reset_velocity.system())
         .add_system(process_collisions.system())
         .add_system(update_position.system())
-        .add_system(reset_velocity.system())
-        .add_system(process_collisions.system())
-        .add_system(update_position.system())
-        .add_system(reset_velocity.system())
-        .add_system(process_collisions.system())
-        .add_system(update_position.system())
+        // .add_system(reset_velocity.system())
+        // .add_system(process_collisions.system())
+        // .add_system(update_position.system())
+        // .add_system(reset_velocity.system())
+        // .add_system(process_collisions.system())
+        // .add_system(update_position.system())
         .add_system(lines.system())
         .add_system(
             (|q: Query<(&Player, &Transform, &Velocity)>,
@@ -64,6 +65,86 @@ fn main() {
 fn falling_velocity(mut q: Query<&mut Velocity>) {
     for mut velocity in q.iter_mut() {
         velocity.0.y -= 1.0;
+    }
+}
+
+fn normal_force(
+    time: Res<Time>,
+    q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
+
+    mut velocities: Query<&mut Velocity>,
+
+    steps: Query<&Step>,
+) {
+    for (entity_a, xform_a, poly_a) in q.iter() {
+        for (entity_b, xform_b, poly_b) in q.iter() {
+            if entity_a >= entity_b {
+                continue;
+            }
+
+            if let Ok(step_a) = steps.get(entity_a) {
+                if step_a.escalator == entity_b {
+                    continue;
+                }
+
+                if let Ok(_step_b) = steps.get(entity_b) {
+                    continue;
+                }
+            }
+
+            if let Ok(step) = steps.get(entity_b) {
+                if step.escalator == entity_a {
+                    continue;
+                }
+            }
+
+            if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
+                // dbg!(contact.clone());
+
+                // HACK: collisions shouldn't push down(?)
+
+                if contact.normal1.y < 0. {
+                    // apply normal force to a
+
+                    if let Ok(mut velocity_a) = velocities.get_mut(entity_a) {
+                        velocity_a.0.y += 1.0;
+                    }
+                }
+
+                if contact.normal2.y < 0.0 {
+                    // apply normal force to b
+
+                    if let Ok(mut velocity_b) = velocities.get_mut(entity_b) {
+                        velocity_b.0.y += 1.0;
+                    }
+                }
+
+                // if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
+                //     {
+                //         let mut collision_correction = contact.normal1 * contact.dist;
+                //         collision_correction.y = collision_correction.y.max(0.0);
+
+                //         let mut velocity_a = velocities.get_mut(entity_a).unwrap();
+                //         *velocity_a = Velocity(velocity_a.0 + collision_correction / delta);
+                //     }
+
+                //     {
+                //         let mut collision_correction = contact.normal2 * contact.dist;
+                //         collision_correction.y = collision_correction.y.max(0.0);
+
+                //         let mut velocity_b = velocities.get_mut(entity_b).unwrap();
+                //         *velocity_b = Velocity(velocity_b.0 + collision_correction / delta);
+                //     }
+                // } else if let Ok(mut w) = velocities.get_mut(entity_a) {
+                //     let collision_correction = contact.normal1 * contact.dist;
+                //     *w = Velocity(w.0 + collision_correction / delta);
+                // } else if let Ok(mut r) = velocities.get_mut(entity_b) {
+                //     let collision_correction: Vec2 = contact.normal2 * contact.dist;
+                //     *r = Velocity(r.0 + collision_correction / delta);
+                // } else {
+                // }
+            }
+        }
     }
 }
 
