@@ -25,41 +25,18 @@ fn main() {
         .add_system(ladder.system())
         // integrate
         .add_system(update_position.system())
-        .add_system(
-            (|q: Query<(&Crate, &Transform, &Velocity)>| {
-                dbg!("first pass");
-                for (_crate, xform, velocity) in q.iter() {
-                    dbg!(xform.translation, velocity);
-                }
-            })
-            .system(),
-        )
+
         // second pass at setting velocities; impulses to avoid collisions
-        // TODO: carry
         .add_system(reset_velocity.system())
         .add_system(process_collisions.system())
         .add_system(update_position.system())
-        // .add_system(reset_velocity.system())
-        // .add_system(process_collisions.system())
-        // .add_system(update_position.system())
-        // .add_system(reset_velocity.system())
-        // .add_system(process_collisions.system())
-        // .add_system(update_position.system())
+        .add_system(reset_velocity.system())
+        .add_system(process_collisions.system())
+        .add_system(update_position.system())
+        .add_system(reset_velocity.system())
+        .add_system(process_collisions.system())
+        .add_system(update_position.system())
         // .add_system(lines.system())
-        .add_system(
-            (|q: Query<(&Player, &Transform, &Velocity)>,
-              r: Query<(&Crate, &Transform, &Velocity)>| {
-                dbg!("player");
-                for (_player, xform, velocity) in q.iter() {
-                    // dbg!(xform.translation);
-                }
-                // dbg!("crate");
-                for (_crate, xform, velocity) in r.iter() {
-                    dbg!(xform.translation);
-                }
-            })
-            .system(),
-        )
         .run();
 }
 
@@ -99,7 +76,7 @@ fn normal_force(
             }
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
-                // dbg!(contact.clone());
+                dbg!(contact.clone());
 
                 // HACK: collisions shouldn't push down(?)
 
@@ -266,56 +243,56 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(250., 50.),
-            t(-100., 0.),
-        );
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(250., 50.),
+        //     t(-100., 0.),
+        // );
 
-        let escalator_xform = t(-125., 50.);
-        let escalator_length = 200.0;
-        let escalator = spawn_escalator(
-            &mut commands,
-            escalator_handle.clone_weak(),
-            escalator_xform,
-            escalator_length,
-        );
+        // let escalator_xform = t(-125., 50.);
+        // let escalator_length = 200.0;
+        // let escalator = spawn_escalator(
+        //     &mut commands,
+        //     escalator_handle.clone_weak(),
+        //     escalator_xform,
+        //     escalator_length,
+        // );
 
-        for (step_transform, track_position, track_length) in
-            steps(escalator_xform, escalator_length, 50.)
-        {
-            spawn_step(
-                &mut commands,
-                step_handle.clone_weak(),
-                escalator,
-                step_transform,
-                50.0,
-                track_position,
-                track_length,
-            );
-        }
+        // for (step_transform, track_position, track_length) in
+        //     steps(escalator_xform, escalator_length, 50.)
+        // {
+        //     spawn_step(
+        //         &mut commands,
+        //         step_handle.clone_weak(),
+        //         escalator,
+        //         step_transform,
+        //         50.0,
+        //         track_position,
+        //         track_length,
+        //     );
+        // }
 
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(200., 50.),
-            t(125., 50.),
-        );
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(200., 50.),
+        //     t(125., 50.),
+        // );
 
-        spawn_ladder(
-            &mut commands,
-            crate_handle.clone_weak(),
-            t(250.0, 0.0),
-            Vec2::new(50.0, 300.0),
-        );
+        // spawn_ladder(
+        //     &mut commands,
+        //     crate_handle.clone_weak(),
+        //     t(250.0, 0.0),
+        //     Vec2::new(50.0, 300.0),
+        // );
 
-        spawn_crate(
-            &mut commands,
-            player_handle.clone_weak(),
-            Vec2::new(50., 50.),
-            t(100., 100.),
-        );
+        // spawn_crate(
+        //     &mut commands,
+        //     player_handle.clone_weak(),
+        //     Vec2::new(50., 50.),
+        //     t(100., 100.),
+        // );
 
         spawn_player(
             &mut commands,
@@ -324,42 +301,42 @@ fn setup(
             t(150., 100.),
         );
 
-        spawn_crate(
-            &mut commands,
-            crate_handle.clone_weak(),
-            Vec2::new(50., 50.),
-            t(200., 100.),
-        );
+        // spawn_crate(
+        //     &mut commands,
+        //     crate_handle.clone_weak(),
+        //     Vec2::new(50., 50.),
+        //     t(200., 100.),
+        // );
 
-        // lower bit
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(700., 50.),
-            t(0., -250.),
-        );
+        // // lower bit
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(700., 50.),
+        //     t(0., -250.),
+        // );
 
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(100., 50.),
-            t(-460., -250.),
-        );
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(100., 50.),
+        //     t(-460., -250.),
+        // );
 
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(100., 50.),
-            t(-360., -300.),
-        );
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(100., 50.),
+        //     t(-360., -300.),
+        // );
 
-        // cheese prevention
-        spawn_ground(
-            &mut commands,
-            ground_handle.clone_weak(),
-            Vec2::new(50., 50.),
-            t(320., -200.),
-        );
+        // // cheese prevention
+        // spawn_ground(
+        //     &mut commands,
+        //     ground_handle.clone_weak(),
+        //     Vec2::new(50., 50.),
+        //     t(320., -200.),
+        // );
     }
 }
 
@@ -632,7 +609,7 @@ fn player_velocity(
             x_velocity += 1.0;
         }
 
-        *velocity = Velocity(Vec2::new(x_velocity, 0.0));
+        *velocity = Velocity(Vec2::new(x_velocity, velocity.0.y));
     }
 }
 
@@ -745,10 +722,9 @@ fn process_collisions(
 
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
-    if delta > 10.0 {
-        return;
-    }
     for (velocity, mut transform) in query.iter_mut() {
+        dbg!(delta, velocity);
+
         transform.translation.x += delta * velocity.0.x;
         transform.translation.y += delta * velocity.0.y;
     }
