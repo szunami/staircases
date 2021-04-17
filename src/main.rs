@@ -70,7 +70,6 @@ fn falling_velocity(mut q: Query<&mut Velocity>) {
 }
 
 fn normal_force(
-    time: Res<Time>,
     q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
 
     mut velocities: Query<&mut Velocity>,
