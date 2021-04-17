@@ -176,7 +176,7 @@ fn friction(
                                 * velocity_b.0
                                 * contact.normal1.perp().normalize();
 
-                                dbg!(friction);
+                            dbg!(friction);
 
                             // project b's velocity onto
                             velocity_a.0 += friction;
@@ -194,8 +194,7 @@ fn friction(
                                 * velocity_a.0
                                 * contact.normal2.perp().normalize();
 
-                                dbg!(friction);
-
+                            dbg!(friction);
 
                             velocity_b.0 += friction;
                         }
@@ -278,9 +277,16 @@ fn setup(
 
         let escalator_xform = t(-125., 50.);
         let escalator_length = 200.0;
-        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), escalator_xform, escalator_length);
+        let escalator = spawn_escalator(
+            commands,
+            escalator_handle.clone_weak(),
+            escalator_xform,
+            escalator_length,
+        );
 
-        for (step_transform, track_position, track_length) in steps(escalator_xform, escalator_length, 50.) {
+        for (step_transform, track_position, track_length) in
+            steps(escalator_xform, escalator_length, 50.)
+        {
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
@@ -297,6 +303,13 @@ fn setup(
             ground_handle.clone_weak(),
             Vec2::new(200., 50.),
             t(125., 50.),
+        );
+
+        spawn_ladder(
+            commands,
+            crate_handle.clone_weak(),
+            t(250.0, 0.0),
+            Vec2::new(50.0, 300.0),
         );
 
         spawn_crate(
@@ -320,7 +333,35 @@ fn setup(
             t(200., 100.),
         );
 
+        // lower bit
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(700., 50.),
+            t(0., -250.),
+        );
 
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(100., 50.),
+            t(-460., -250.),
+        );
+
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(100., 50.),
+            t(-360., -300.),
+        );
+
+        // cheese prevention
+        spawn_ground(
+            commands,
+            ground_handle.clone_weak(),
+            Vec2::new(50., 50.),
+            t(320., -200.),
+        );
     }
 }
 
@@ -642,7 +683,6 @@ fn process_collisions(
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
 
     dbg!(delta);
-
 
     if delta == 0.0 {
         return;
