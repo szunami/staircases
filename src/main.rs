@@ -12,7 +12,7 @@ fn main() {
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        // .add_system(framerate.system())
+        .add_system(framerate.system())
         // systems that don't edit velocity
         .add_system(update_step_track.system())
         // first pass at setting velocities
@@ -27,9 +27,9 @@ fn main() {
         .add_system(update_position.system())
         .add_system(
             (|q: Query<(&Crate, &Transform, &Velocity)>| {
-                // dbg!("first pass");
+                dbg!("first pass");
                 for (_crate, xform, velocity) in q.iter() {
-                    // dbg!(xform.translation);
+                    dbg!(xform.translation, velocity);
                 }
             })
             .system(),
@@ -49,13 +49,13 @@ fn main() {
         .add_system(
             (|q: Query<(&Player, &Transform, &Velocity)>,
               r: Query<(&Crate, &Transform, &Velocity)>| {
-                // dbg!("player");
+                dbg!("player");
                 for (_player, xform, velocity) in q.iter() {
                     // dbg!(xform.translation);
                 }
                 // dbg!("crate");
                 for (_crate, xform, velocity) in r.iter() {
-                    // dbg!(xform.translation);
+                    dbg!(xform.translation);
                 }
             })
             .system(),
@@ -130,7 +130,6 @@ It is perpendicular to the normal of the comment
 and resists motion of the top entity relative to the bottom entity.
 */
 fn friction(
-    time: Res<Time>,
     q: Query<(Entity, &Transform, &ConvexPolygon), Without<Ladder>>,
 
     mut velocities: Query<&mut Velocity>,
@@ -177,6 +176,8 @@ fn friction(
                                 * velocity_b.0
                                 * contact.normal1.perp().normalize();
 
+                                dbg!(friction);
+
                             // project b's velocity onto
                             velocity_a.0 += friction;
                         }
@@ -192,6 +193,9 @@ fn friction(
                             let friction = FRICTION_COEFFICIENT
                                 * velocity_a.0
                                 * contact.normal2.perp().normalize();
+
+                                dbg!(friction);
+
 
                             velocity_b.0 += friction;
                         }
@@ -268,13 +272,15 @@ fn setup(
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
-            Vec2::new(50., 50.),
-            t(0., -25.),
+            Vec2::new(250., 50.),
+            t(-100., 0.),
         );
 
-        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), t(0., 100.), 200.);
+        let escalator_xform = t(-125., 50.);
+        let escalator_length = 200.0;
+        let escalator = spawn_escalator(commands, escalator_handle.clone_weak(), escalator_xform, escalator_length);
 
-        for (step_transform, track_position, track_length) in steps(t(0., 100.), 200., 50.) {
+        for (step_transform, track_position, track_length) in steps(escalator_xform, escalator_length, 50.) {
             spawn_step(
                 commands,
                 step_handle.clone_weak(),
@@ -286,47 +292,35 @@ fn setup(
             );
         }
 
-        spawn_player(
-            commands,
-            player_handle.clone_weak(),
-            Vec2::new(50.0, 100.0),
-            t(0.0, 300.0),
-        );
-
         spawn_ground(
             commands,
             ground_handle.clone_weak(),
-            Vec2::new(50.0, 50.0),
-            t(-125., 175.),
+            Vec2::new(200., 50.),
+            t(125., 50.),
         );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(0.0, 50.0),
-        // );
+        spawn_crate(
+            commands,
+            player_handle.clone_weak(),
+            Vec2::new(50., 50.),
+            t(100., 100.),
+        );
 
-        // spawn_crate(
-        //     commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-200.0, 0.0),
-        // );
+        spawn_player(
+            commands,
+            player_handle.clone_weak(),
+            Vec2::new(50., 100.),
+            t(150., 100.),
+        );
 
-        // spawn_ground(
-        //     commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-200.0, -50.0),
-        // );
+        spawn_crate(
+            commands,
+            crate_handle.clone_weak(),
+            Vec2::new(50., 50.),
+            t(200., 100.),
+        );
 
-        // spawn_ground(
-        //     commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(50.0, 50.0),
-        //     t(-250.0, 0.0),
-        // );
+
     }
 }
 
@@ -647,6 +641,9 @@ fn process_collisions(
     // HACK: this will get multiplied by delta, so we divide by it first
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
 
+    dbg!(delta);
+
+
     if delta == 0.0 {
         return;
     }
@@ -709,6 +706,9 @@ fn process_collisions(
 
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
+    if delta > 10.0 {
+        return;
+    }
     for (velocity, mut transform) in query.iter_mut() {
         transform.translation.x += delta * velocity.0.x;
         transform.translation.y += delta * velocity.0.y;
