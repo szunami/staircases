@@ -8,7 +8,7 @@ const BASE_SPEED_FACTOR: f32 = 70.0;
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
-        .add_plugin(DebugLinesPlugin)
+        // .add_plugin(DebugLinesPlugin)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
@@ -45,7 +45,7 @@ fn main() {
         // .add_system(reset_velocity.system())
         // .add_system(process_collisions.system())
         // .add_system(update_position.system())
-        .add_system(lines.system())
+        // .add_system(lines.system())
         .add_system(
             (|q: Query<(&Player, &Transform, &Velocity)>,
               r: Query<(&Crate, &Transform, &Velocity)>| {
@@ -244,16 +244,15 @@ fn t(x: f32, y: f32) -> Transform {
 
 #[allow(unused_variables)]
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
 
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands
-        .spawn(Camera2dBundle::default())
-        .spawn(CameraUiBundle::default());
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
 
     let escalator_base = asset_server.load("textures/base.png");
     let escalator_atlas = TextureAtlas::from_grid(escalator_base, Vec2::new(200.0, 200.0), 1, 1);
@@ -268,7 +267,7 @@ fn setup(
 
     {
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(250., 50.),
             t(-100., 0.),
@@ -277,7 +276,7 @@ fn setup(
         let escalator_xform = t(-125., 50.);
         let escalator_length = 200.0;
         let escalator = spawn_escalator(
-            commands,
+            &mut commands,
             escalator_handle.clone_weak(),
             escalator_xform,
             escalator_length,
@@ -287,7 +286,7 @@ fn setup(
             steps(escalator_xform, escalator_length, 50.)
         {
             spawn_step(
-                commands,
+                &mut commands,
                 step_handle.clone_weak(),
                 escalator,
                 step_transform,
@@ -298,35 +297,35 @@ fn setup(
         }
 
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(200., 50.),
             t(125., 50.),
         );
 
         spawn_ladder(
-            commands,
+            &mut commands,
             crate_handle.clone_weak(),
             t(250.0, 0.0),
             Vec2::new(50.0, 300.0),
         );
 
         spawn_crate(
-            commands,
+            &mut commands,
             player_handle.clone_weak(),
             Vec2::new(50., 50.),
             t(100., 100.),
         );
 
         spawn_player(
-            commands,
+            &mut commands,
             player_handle.clone_weak(),
             Vec2::new(50., 100.),
             t(150., 100.),
         );
 
         spawn_crate(
-            commands,
+            &mut commands,
             crate_handle.clone_weak(),
             Vec2::new(50., 50.),
             t(200., 100.),
@@ -334,21 +333,21 @@ fn setup(
 
         // lower bit
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(700., 50.),
             t(0., -250.),
         );
 
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(100., 50.),
             t(-460., -250.),
         );
 
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(100., 50.),
             t(-360., -300.),
@@ -356,7 +355,7 @@ fn setup(
 
         // cheese prevention
         spawn_ground(
-            commands,
+            &mut commands,
             ground_handle.clone_weak(),
             Vec2::new(50., 50.),
             t(320., -200.),
@@ -372,7 +371,8 @@ fn spawn_escalator(
     length: f32,
 ) -> Entity {
     commands
-        .spawn(SpriteSheetBundle {
+        .spawn()
+        .insert_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 color: Color::rgba(1.0, 1.0, 1.0, 0.5),
                 ..TextureAtlasSprite::default()
@@ -385,9 +385,9 @@ fn spawn_escalator(
             transform,
             ..Default::default()
         })
-        .with(Escalator { length })
-        .with(Velocity(Vec2::zero()))
-        .with(
+        .insert(Escalator { length })
+        .insert(Velocity(Vec2::ZERO))
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-length / 2.0, length / 2.0 - 10.0),
                 Point2::new(length / 2.0, -length / 2.0),
@@ -395,8 +395,7 @@ fn spawn_escalator(
             ])
             .expect("polygon"),
         )
-        .current_entity()
-        .expect("escalator")
+        .id()
 }
 
 #[allow(dead_code)]
@@ -407,14 +406,14 @@ fn spawn_ladder(
     size: Vec2,
 ) {
     commands
-        .spawn(SpriteBundle {
+        .spawn_bundle(SpriteBundle {
             material,
             transform,
             sprite: Sprite::new(size),
             ..Default::default()
         })
-        .with(Ladder)
-        .with(
+        .insert(Ladder)
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-size.x / 2.0, size.y / 2.0),
                 Point2::new(size.x / 2.0, size.y / 2.0),
@@ -436,19 +435,20 @@ fn spawn_step(
     track_length: f32,
 ) -> Entity {
     commands
-        .spawn(SpriteBundle {
+        .spawn()
+        .insert_bundle(SpriteBundle {
             material,
             transform,
             sprite: Sprite::new(Vec2::splat(length)),
             ..Default::default()
         })
-        .with(Step { escalator, length })
-        .with(Velocity(Vec2::zero()))
-        .with(Track {
+        .insert(Step { escalator, length })
+        .insert(Velocity(Vec2::ZERO))
+        .insert(Track {
             length: track_length,
             position: track_position,
         })
-        .with(
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-length / 2.0, length / 2.0),
                 Point2::new(length / 2.0, length / 2.0),
@@ -457,8 +457,7 @@ fn spawn_step(
             ])
             .expect("poly"),
         )
-        .current_entity()
-        .expect("spawned step")
+        .id()
 }
 
 fn spawn_ground(
@@ -468,14 +467,15 @@ fn spawn_ground(
     transform: Transform,
 ) {
     commands
-        .spawn(SpriteBundle {
+        .spawn()
+        .insert_bundle(SpriteBundle {
             sprite: Sprite::new(ground_box),
             material,
             transform,
             ..Default::default()
         })
-        .with(Ground)
-        .with(
+        .insert(Ground)
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-ground_box.x / 2.0, ground_box.y / 2.0),
                 Point2::new(ground_box.x / 2.0, ground_box.y / 2.0),
@@ -494,15 +494,16 @@ fn spawn_player(
     transform: Transform,
 ) {
     commands
-        .spawn(SpriteBundle {
+        .spawn()
+        .insert_bundle(SpriteBundle {
             sprite: Sprite::new(size),
             transform,
             material,
             ..SpriteBundle::default()
         })
-        .with(Player)
-        .with(Velocity(Vec2::zero()))
-        .with(
+        .insert(Player)
+        .insert(Velocity(Vec2::ZERO))
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-size.x / 2.0, size.y / 2.0),
                 Point2::new(size.x / 2.0, size.y / 2.0),
@@ -521,15 +522,15 @@ fn spawn_crate(
     transform: Transform,
 ) -> Entity {
     commands
-        .spawn(SpriteBundle {
+        .spawn_bundle(SpriteBundle {
             transform,
             sprite: Sprite::new(size),
             material,
             ..Default::default()
         })
-        .with(Crate {})
-        .with(Velocity(Vec2::zero()))
-        .with(
+        .insert(Crate {})
+        .insert(Velocity(Vec2::ZERO))
+        .insert(
             ConvexPolygon::from_convex_hull(&[
                 Point2::new(-size.x / 2.0, size.y / 2.0),
                 Point2::new(size.x / 2.0, size.y / 2.0),
@@ -538,8 +539,7 @@ fn spawn_crate(
             ])
             .expect("poly"),
         )
-        .current_entity()
-        .expect("Spawned crate")
+        .id()
 }
 
 #[allow(dead_code)]
@@ -764,47 +764,47 @@ fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
 
 fn reset_velocity(mut query: Query<&mut Velocity>) {
     for mut velocity in query.iter_mut() {
-        *velocity = Velocity(Vec2::zero());
+        *velocity = Velocity(Vec2::ZERO);
     }
 }
 
-fn lines(mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
-    for (xform, polygon) in q.iter() {
-        for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
-            let start = Vec3::new(
-                point1.x + xform.translation.x,
-                point1.y + xform.translation.y,
-                0.0,
-            );
+// fn lines(mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
+//     for (xform, polygon) in q.iter() {
+//         for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
+//             let start = Vec3::new(
+//                 point1.x + xform.translation.x,
+//                 point1.y + xform.translation.y,
+//                 0.0,
+//             );
 
-            let end = Vec3::new(
-                point2.x + xform.translation.x,
-                point2.y + xform.translation.y,
-                0.0,
-            );
+//             let end = Vec3::new(
+//                 point2.x + xform.translation.x,
+//                 point2.y + xform.translation.y,
+//                 0.0,
+//             );
 
-            lines.line(start, end, 1.);
-        }
+//             lines.line(start, end, 1.);
+//         }
 
-        if let Some(point1) = polygon.points().first() {
-            if let Some(point2) = polygon.points().last() {
-                let start = Vec3::new(
-                    point1.x + xform.translation.x,
-                    point1.y + xform.translation.y,
-                    0.0,
-                );
+//         if let Some(point1) = polygon.points().first() {
+//             if let Some(point2) = polygon.points().last() {
+//                 let start = Vec3::new(
+//                     point1.x + xform.translation.x,
+//                     point1.y + xform.translation.y,
+//                     0.0,
+//                 );
 
-                let end = Vec3::new(
-                    point2.x + xform.translation.x,
-                    point2.y + xform.translation.y,
-                    0.0,
-                );
+//                 let end = Vec3::new(
+//                     point2.x + xform.translation.x,
+//                     point2.y + xform.translation.y,
+//                     0.0,
+//                 );
 
-                lines.line(start, end, 1.);
-            }
-        }
-    }
-}
+//                 lines.line(start, end, 1.);
+//             }
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone)]
 struct BevyCollision {
