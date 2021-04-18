@@ -5,6 +5,20 @@ use parry2d::{query, shape::ConvexPolygon};
 
 const BASE_SPEED_FACTOR: f32 = 70.0;
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct PrePhysicsLabel;
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct VelocityLabel;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct PositionLabel;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct PreCollisionLabel;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct CollisionLabel;
+
 fn main() {
     App::build()
         .add_plugins(DefaultPlugins)
@@ -12,30 +26,53 @@ fn main() {
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        .add_system(framerate.system())
-        // systems that don't edit velocity
-        .add_system(update_step_track.system())
-        // first pass at setting velocities
-        .add_system(reset_velocity.system())
-        .add_system(step_velocity.system())
-        .add_system(player_velocity.system())
-        .add_system(falling_velocity.system())
-        .add_system(normal_force.system())
-        .add_system(friction.system())
-        .add_system(ladder.system())
-        // integrate
-        .add_system(update_position.system())
+        // .add_system(framerate.system())
 
+
+        .add_system(reset_velocity.system().label(PrePhysicsLabel))
+        // systems that don't edit velocity
+        // .add_system(update_step_track.system().label(PrePhysicsLabel))
+        // first pass at setting velocities
+        .add_system_set(
+            SystemSet::new()
+                .label(VelocityLabel)
+                .after(PrePhysicsLabel)
+                // .with_system(step_velocity.system())
+                .with_system(player_velocity.system())
+                // .with_system(falling_velocity.system())
+                // .with_system(normal_force.system())
+                // .with_system(friction.system())
+                // .with_system(ladder.system()),
+        )
+        // integrate
+        .add_system(
+            update_position
+                .system()
+                .label(PositionLabel)
+                .after(VelocityLabel),
+        )
         // second pass at setting velocities; impulses to avoid collisions
-        .add_system(reset_velocity.system())
-        .add_system(process_collisions.system())
-        .add_system(update_position.system())
-        .add_system(reset_velocity.system())
-        .add_system(process_collisions.system())
-        .add_system(update_position.system())
-        .add_system(reset_velocity.system())
-        .add_system(process_collisions.system())
-        .add_system(update_position.system())
+        // .add_system(
+        //     reset_velocity
+        //         .system()
+        //         .after(PositionLabel)
+        //         .label(PreCollisionLabel),
+        // )
+        // .add_system(
+        //     process_collisions
+        //         .system()
+        //         .after(PreCollisionLabel)
+        //         .label(CollisionLabel),
+        // )
+        // .add_system(update_position.system().after(CollisionLabel))
+        // .add_system(process_collisions.system())
+        // .add_system(update_position.system())
+        // .add_system(reset_velocity.system())
+        // .add_system(process_collisions.system())
+        // .add_system(update_position.system())
+        // .add_system(reset_velocity.system())
+        // .add_system(process_collisions.system())
+        // .add_system(update_position.system())
         // .add_system(lines.system())
         .run();
 }
@@ -76,8 +113,6 @@ fn normal_force(
             }
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
-                dbg!(contact.clone());
-
                 // HACK: collisions shouldn't push down(?)
 
                 if contact.normal1.y < 0. {
@@ -152,8 +187,6 @@ fn friction(
                                 * velocity_b.0
                                 * contact.normal1.perp().normalize();
 
-                            dbg!(friction);
-
                             // project b's velocity onto
                             velocity_a.0 += friction;
                         }
@@ -169,8 +202,6 @@ fn friction(
                             let friction = FRICTION_COEFFICIENT
                                 * velocity_a.0
                                 * contact.normal2.perp().normalize();
-
-                            dbg!(friction);
 
                             velocity_b.0 += friction;
                         }
@@ -243,12 +274,12 @@ fn setup(
     let step_handle = materials.add(Color::rgb(168.0 / 255.0, 202.0 / 255.0, 88.0 / 255.0).into());
 
     {
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(250., 50.),
-        //     t(-100., 0.),
-        // );
+        spawn_ground(
+            &mut commands,
+            ground_handle.clone_weak(),
+            Vec2::new(250., 50.),
+            t(-100., 0.),
+        );
 
         // let escalator_xform = t(-125., 50.);
         // let escalator_length = 200.0;
@@ -273,26 +304,26 @@ fn setup(
         //     );
         // }
 
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(200., 50.),
-        //     t(125., 50.),
-        // );
+        spawn_ground(
+            &mut commands,
+            ground_handle.clone_weak(),
+            Vec2::new(200., 50.),
+            t(125., 50.),
+        );
 
-        // spawn_ladder(
-        //     &mut commands,
-        //     crate_handle.clone_weak(),
-        //     t(250.0, 0.0),
-        //     Vec2::new(50.0, 300.0),
-        // );
+        spawn_ladder(
+            &mut commands,
+            crate_handle.clone_weak(),
+            t(250.0, 0.0),
+            Vec2::new(50.0, 300.0),
+        );
 
-        // spawn_crate(
-        //     &mut commands,
-        //     player_handle.clone_weak(),
-        //     Vec2::new(50., 50.),
-        //     t(100., 100.),
-        // );
+        spawn_crate(
+            &mut commands,
+            player_handle.clone_weak(),
+            Vec2::new(50., 50.),
+            t(100., 100.),
+        );
 
         spawn_player(
             &mut commands,
@@ -300,44 +331,43 @@ fn setup(
             Vec2::new(50., 100.),
             t(150., 100.),
         );
-
-        // spawn_crate(
-        //     &mut commands,
-        //     crate_handle.clone_weak(),
-        //     Vec2::new(50., 50.),
-        //     t(200., 100.),
-        // );
-
-        // // lower bit
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(700., 50.),
-        //     t(0., -250.),
-        // );
-
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(100., 50.),
-        //     t(-460., -250.),
-        // );
-
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(100., 50.),
-        //     t(-360., -300.),
-        // );
-
-        // // cheese prevention
-        // spawn_ground(
-        //     &mut commands,
-        //     ground_handle.clone_weak(),
-        //     Vec2::new(50., 50.),
-        //     t(320., -200.),
-        // );
     }
+    spawn_crate(
+        &mut commands,
+        crate_handle.clone_weak(),
+        Vec2::new(50., 50.),
+        t(200., 100.),
+    );
+
+    // lower bit
+    spawn_ground(
+        &mut commands,
+        ground_handle.clone_weak(),
+        Vec2::new(700., 50.),
+        t(0., -250.),
+    );
+
+    spawn_ground(
+        &mut commands,
+        ground_handle.clone_weak(),
+        Vec2::new(100., 50.),
+        t(-460., -250.),
+    );
+
+    spawn_ground(
+        &mut commands,
+        ground_handle.clone_weak(),
+        Vec2::new(100., 50.),
+        t(-360., -300.),
+    );
+
+    // cheese prevention
+    spawn_ground(
+        &mut commands,
+        ground_handle.clone_weak(),
+        Vec2::new(50., 50.),
+        t(320., -200.),
+    );
 }
 
 #[allow(dead_code)]
@@ -600,7 +630,9 @@ fn player_velocity(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<(&Player, &mut Velocity)>,
 ) {
+    dbg!("player_velocity");
     for (_player, mut velocity) in query.iter_mut() {
+
         let mut x_velocity = 0.0;
         if keyboard_input.pressed(KeyCode::A) {
             x_velocity += -1.0;
@@ -610,6 +642,7 @@ fn player_velocity(
         }
 
         *velocity = Velocity(Vec2::new(x_velocity, velocity.0.y));
+        // dbg!(velocity.0);
     }
 }
 
@@ -658,8 +691,6 @@ fn process_collisions(
     // HACK: this will get multiplied by delta, so we divide by it first
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
 
-    dbg!(delta);
-
     if delta == 0.0 {
         return;
     }
@@ -687,8 +718,6 @@ fn process_collisions(
             }
 
             if let Some(contact) = collision(poly_a, &xform_a, poly_b, &xform_b) {
-                // dbg!(contact.clone());
-
                 // HACK: collisions shouldn't push down(?)
 
                 if velocities.get_mut(entity_a).is_ok() && velocities.get_mut(entity_b).is_ok() {
@@ -723,8 +752,6 @@ fn process_collisions(
 fn update_position(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
     let delta = BASE_SPEED_FACTOR * time.delta_seconds();
     for (velocity, mut transform) in query.iter_mut() {
-        dbg!(delta, velocity);
-
         transform.translation.x += delta * velocity.0.x;
         transform.translation.y += delta * velocity.0.y;
     }
@@ -739,6 +766,7 @@ fn update_step_track(time: Res<Time>, mut steps: Query<(&Step, &mut Track)>) {
 }
 
 fn reset_velocity(mut query: Query<&mut Velocity>) {
+    dbg!("Resetting velocity");
     for mut velocity in query.iter_mut() {
         *velocity = Velocity(Vec2::ZERO);
     }
