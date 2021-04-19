@@ -8,7 +8,10 @@ const BASE_SPEED_FACTOR: f32 = 70.0;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 pub struct PrePhysicsLabel;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
-pub struct VelocityLabel;
+pub struct IndependentVelocityLabel;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+pub struct DependentVelocityLabel;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 pub struct PositionLabel;
@@ -21,50 +24,59 @@ pub struct CollisionLabel;
 
 fn main() {
     App::build()
-        .add_plugins(DefaultPlugins)
-        // .add_plugin(DebugLinesPlugin)
+    .insert_resource(WindowDescriptor {
+        vsync: false,
+        ..Default::default()
+    })
+
+    .add_plugins(DefaultPlugins)
+
+        .add_plugin(DebugLinesPlugin)
         .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin)
         .add_startup_system(setup.system())
         .add_system(bevy::input::system::exit_on_esc_system.system())
-        // .add_system(framerate.system())
+        .add_system(framerate.system())
 
 
         .add_system(reset_velocity.system().label(PrePhysicsLabel))
         // systems that don't edit velocity
-        // .add_system(update_step_track.system().label(PrePhysicsLabel))
+        .add_system(update_step_track.system().label(PrePhysicsLabel))
         // first pass at setting velocities
         .add_system_set(
             SystemSet::new()
-                .label(VelocityLabel)
+                .label(IndependentVelocityLabel)
                 .after(PrePhysicsLabel)
-                // .with_system(step_velocity.system())
+                .with_system(step_velocity.system())
                 .with_system(player_velocity.system())
-                // .with_system(falling_velocity.system())
-                // .with_system(normal_force.system())
-                // .with_system(friction.system())
-                // .with_system(ladder.system()),
+                .with_system(falling_velocity.system())
+                .with_system(normal_force.system())
+                .with_system(ladder.system()),
         )
+
+        .add_system(friction.system().label(DependentVelocityLabel).after(IndependentVelocityLabel))
+
         // integrate
         .add_system(
             update_position
                 .system()
                 .label(PositionLabel)
-                .after(VelocityLabel),
+                .after(DependentVelocityLabel),
         )
         // second pass at setting velocities; impulses to avoid collisions
-        // .add_system(
-        //     reset_velocity
-        //         .system()
-        //         .after(PositionLabel)
-        //         .label(PreCollisionLabel),
-        // )
-        // .add_system(
-        //     process_collisions
-        //         .system()
-        //         .after(PreCollisionLabel)
-        //         .label(CollisionLabel),
-        // )
-        // .add_system(update_position.system().after(CollisionLabel))
+        .add_system(
+            reset_velocity
+                .system()
+                .after(PositionLabel)
+                .label(PreCollisionLabel),
+        )
+        .add_system(
+            process_collisions
+                .system()
+                .after(PreCollisionLabel)
+                .label(CollisionLabel),
+        )
+        .add_system(update_position.system().after(CollisionLabel))
+        
         // .add_system(process_collisions.system())
         // .add_system(update_position.system())
         // .add_system(reset_velocity.system())
@@ -73,7 +85,7 @@ fn main() {
         // .add_system(reset_velocity.system())
         // .add_system(process_collisions.system())
         // .add_system(update_position.system())
-        // .add_system(lines.system())
+        .add_system(lines.system())
         .run();
 }
 
@@ -147,6 +159,9 @@ fn friction(
 
     steps: Query<&Step>,
 ) {
+
+    dbg!("friction");
+
     for (entity_a, xform_a, poly_a) in q.iter() {
         for (entity_b, xform_b, poly_b) in q.iter() {
             if entity_a >= entity_b {
@@ -281,28 +296,28 @@ fn setup(
             t(-100., 0.),
         );
 
-        // let escalator_xform = t(-125., 50.);
-        // let escalator_length = 200.0;
-        // let escalator = spawn_escalator(
-        //     &mut commands,
-        //     escalator_handle.clone_weak(),
-        //     escalator_xform,
-        //     escalator_length,
-        // );
+        let escalator_xform = t(-125., 50.);
+        let escalator_length = 200.0;
+        let escalator = spawn_escalator(
+            &mut commands,
+            escalator_handle.clone_weak(),
+            escalator_xform,
+            escalator_length,
+        );
 
-        // for (step_transform, track_position, track_length) in
-        //     steps(escalator_xform, escalator_length, 50.)
-        // {
-        //     spawn_step(
-        //         &mut commands,
-        //         step_handle.clone_weak(),
-        //         escalator,
-        //         step_transform,
-        //         50.0,
-        //         track_position,
-        //         track_length,
-        //     );
-        // }
+        for (step_transform, track_position, track_length) in
+            steps(escalator_xform, escalator_length, 50.)
+        {
+            spawn_step(
+                &mut commands,
+                step_handle.clone_weak(),
+                escalator,
+                step_transform,
+                50.0,
+                track_position,
+                track_length,
+            );
+        }
 
         spawn_ground(
             &mut commands,
@@ -650,6 +665,7 @@ fn step_velocity(
     mut step_query: Query<(&Step, &Track, &Transform, &mut Velocity)>,
     escalator_query: Query<(&Escalator, &Transform)>,
 ) {
+    dbg!("step_velocity");
     for (step, track, step_transform, mut velocity) in step_query.iter_mut() {
         let (escalator, escalator_transform) = escalator_query
             .get(step.escalator)
@@ -772,43 +788,43 @@ fn reset_velocity(mut query: Query<&mut Velocity>) {
     }
 }
 
-// fn lines(mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
-//     for (xform, polygon) in q.iter() {
-//         for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
-//             let start = Vec3::new(
-//                 point1.x + xform.translation.x,
-//                 point1.y + xform.translation.y,
-//                 0.0,
-//             );
+fn lines(mut lines: ResMut<DebugLines>, q: Query<(&Transform, &ConvexPolygon)>) {
+    for (xform, polygon) in q.iter() {
+        for (point1, point2) in polygon.points().iter().skip(1).zip(polygon.points()) {
+            let start = Vec3::new(
+                point1.x + xform.translation.x,
+                point1.y + xform.translation.y,
+                0.0,
+            );
 
-//             let end = Vec3::new(
-//                 point2.x + xform.translation.x,
-//                 point2.y + xform.translation.y,
-//                 0.0,
-//             );
+            let end = Vec3::new(
+                point2.x + xform.translation.x,
+                point2.y + xform.translation.y,
+                0.0,
+            );
 
-//             lines.line(start, end, 1.);
-//         }
+            lines.line(start, end, 0.0);
+        }
 
-//         if let Some(point1) = polygon.points().first() {
-//             if let Some(point2) = polygon.points().last() {
-//                 let start = Vec3::new(
-//                     point1.x + xform.translation.x,
-//                     point1.y + xform.translation.y,
-//                     0.0,
-//                 );
+        if let Some(point1) = polygon.points().first() {
+            if let Some(point2) = polygon.points().last() {
+                let start = Vec3::new(
+                    point1.x + xform.translation.x,
+                    point1.y + xform.translation.y,
+                    0.0,
+                );
 
-//                 let end = Vec3::new(
-//                     point2.x + xform.translation.x,
-//                     point2.y + xform.translation.y,
-//                     0.0,
-//                 );
+                let end = Vec3::new(
+                    point2.x + xform.translation.x,
+                    point2.y + xform.translation.y,
+                    0.0,
+                );
 
-//                 lines.line(start, end, 1.);
-//             }
-//         }
-//     }
-// }
+                lines.line(start, end, 0.0);
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct BevyCollision {
